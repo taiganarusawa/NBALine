@@ -10,9 +10,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from . import lineups, shots, tracking
-from .paths import (DUNKS, FEATURES_CACHE, PLAYER_LOGS, SHOTS as SHOTS_FILE, STARTERS, TEAM_LOGS,
-                    TRACKING as TRACKING_FILE)
+from . import hustle, lineups, shots, tracking
+from .paths import (DUNKS, FEATURES_CACHE, HUSTLE as HUSTLE_FILE, PLAYER_LOGS, SHOTS as SHOTS_FILE, STARTERS,
+                    TEAM_LOGS, TRACKING as TRACKING_FILE)
 
 # ---- Feature sets. v1 = the original prototype; v2 adds groups that are tested one at a time.
 V1 = [
@@ -69,6 +69,16 @@ SHOTS = ([f"{k}_FGA_PM_L10" for k in SHOT_KINDS]
          + ["SHOT_FEET_L10", "RIM_PCT_L20", "XPTS_PER_SHOT_L20", "SHOT_MAKING_L20"])
 SHOT_COLS = [c for c in shots.COLUMNS if c != "DUNKS"]   # each game's counts; DUNKS comes from dunks.csv
 LEAGUE_WINDOW = "365D"   # league-wide accuracy in each zone: over the year before each game day
+# Hustle stats (hustle.py, logged by people at each game, every season): deflections, contested 2s and 3s,
+# screen assists, loose balls and box outs, per minute against the league's rate under the same counting (like
+# TRACKING_REL), over his last 10 games. Box outs only from 2022-23: before that every box out was logged, not
+# just the ones that won the ball. Charges are too rare to use (TRAINING.md 4i). Tested on its own (E13):
+# used by the stats in WITH_HUSTLE.
+HUSTLE_PER_MIN = {"DEFLECTIONS": "DEFLECTIONS", "CONTESTED_2PT": "CONTESTED_SHOTS_2PT",
+                  "CONTESTED_3PT": "CONTESTED_SHOTS_3PT", "SCREEN_AST": "SCREEN_ASSISTS",
+                  "LOOSE_BALLS": "LOOSE_BALLS_RECOVERED", "BOX_OUTS": "BOX_OUTS"}
+HUSTLE = [f"{k}_REL_L10" for k in HUSTLE_PER_MIN]
+BOX_OUTS_FROM = 2022    # the first season box outs were logged the way they are now
 FEATURES = V1  # overwritten by the trained model's saved feature list at prediction time
 
 LABELS = {
@@ -139,7 +149,13 @@ LABELS.update({f"{k}_REL_L10": LABELS[f"{k}_PM_L10"].replace(" (last 10)", ", vs
                for k in TRACKING_PER_MIN})
 LABELS.update({"AST_PER_POT_REL_L20": "Assists from his potential assists, vs. the league (last 20)",
                "REB_PER_CHANCE_REL_L20": "Rebounds from his rebound chances, vs. the league (last 20)",
-               "TOV_PER_TOUCH_REL_L20": "Turnovers per touch, vs. the league (last 20)"})
+               "TOV_PER_TOUCH_REL_L20": "Turnovers per touch, vs. the league (last 20)",
+               "DEFLECTIONS_REL_L10": "Deflections per minute, vs. the league (last 10)",
+               "CONTESTED_2PT_REL_L10": "Contested 2-point shots per minute, vs. the league (last 10)",
+               "CONTESTED_3PT_REL_L10": "Contested 3-point shots per minute, vs. the league (last 10)",
+               "SCREEN_AST_REL_L10": "Screen assists per minute, vs. the league (last 10)",
+               "LOOSE_BALLS_REL_L10": "Loose balls recovered per minute, vs. the league (last 10)",
+               "BOX_OUTS_REL_L10": "Box outs per minute, vs. the league (last 10, from 2022-23)"})
 
 
 def load_raw():
@@ -148,7 +164,7 @@ def load_raw():
     for df in (p, t):
         df["GAME_DATE"] = pd.to_datetime(df["GAME_DATE"])
         df["SEASON"] = df["SEASON_ID"].astype(str).str[1:].astype(int)  # 22025 -> 2025
-    return add_shots(add_tracking(add_starters(add_prizepicks_columns(p)))), t
+    return add_hustle(add_shots(add_tracking(add_starters(add_prizepicks_columns(p))))), t
 
 
 def add_tracking(p: pd.DataFrame) -> pd.DataFrame:
@@ -176,17 +192,7 @@ def league_tracking_rates() -> pd.DataFrame:
 def _league_tracking_rates(*file_times: float) -> pd.DataFrame:
     logs = pd.read_csv(PLAYER_LOGS, usecols=["GAME_DATE", "GAME_ID", "PLAYER_ID", "MIN", "AST", "REB", "TOV"])
     games = logs.merge(tracking.load().drop(columns="TEAM_ID"), on=["GAME_DATE", "PLAYER_ID"])
-    counts = ["MIN", "AST", "REB", "TOV", *TRACKING_PER_MIN.values()]
-    day = games.groupby("GAME_DATE").agg(GAMES=("GAME_ID", "nunique"), **{c: (c, "sum") for c in counts})
-    day.index = pd.to_datetime(day.index)
-    pooled = []
-    for _, d in day.groupby(day.index.map(lambda t: tracking.season_of(t.date()))):
-        total = d.cumsum().to_numpy()                                    # season totals through each day
-        before = np.vstack([np.zeros(d.shape[1]), total[:-1]])           # and before it
-        # the latest first day that still gives LEAGUE_MIN_GAMES games (the season so far if it has fewer)
-        first = np.searchsorted(before[:, 0], total[:, 0] - LEAGUE_MIN_GAMES, side="right") - 1
-        pooled.append(pd.DataFrame(total - before[np.clip(first, 0, None)], index=d.index, columns=d.columns))
-    w = pd.concat(pooled)
+    w = _pooled_by_day(games, ["MIN", "AST", "REB", "TOV", *TRACKING_PER_MIN.values()])
     rates = pd.DataFrame({c: w[c] / w["MIN"] for c in TRACKING_PER_MIN.values()})
     for name, (made, chances) in CONVERSIONS.items():
         rates[name] = w[made] / w[chances]
@@ -216,6 +222,63 @@ def tracking_features(p: pd.DataFrame) -> pd.DataFrame:
                 for name, (made, _) in CONVERSIONS.items()})
     # .copy() packs the table back into one block per type: build_features adds dozens more columns one at
     # a time after this, and pandas warns ("highly fragmented") once a table is in 100+ pieces
+    return pd.concat([p.drop(columns=list(temp)), pd.DataFrame(new, index=p.index)], axis=1).copy()
+
+
+def league_hustle_rates() -> pd.DataFrame:
+    """League-wide hustle rates for each game day: each HUSTLE_PER_MIN count per minute played, pooled like
+    league_tracking_rates. Deflections rose 15% at the start of 2024-25 and screen assists fell 15% at the
+    start of 2025-26, and contested shots and loose balls drift down every season (TRAINING.md 4i), so each
+    game is measured against the league under the same counting."""
+    return _league_hustle_rates(HUSTLE_FILE.stat().st_mtime if HUSTLE_FILE.exists() else 0,
+                                PLAYER_LOGS.stat().st_mtime)
+
+
+@functools.lru_cache(maxsize=1)
+def _league_hustle_rates(*file_times: float) -> pd.DataFrame:
+    logs = pd.read_csv(PLAYER_LOGS, usecols=["GAME_DATE", "GAME_ID", "PLAYER_ID", "MIN"])
+    games = logs.merge(hustle.load()[["GAME_DATE", "PLAYER_ID", *HUSTLE_PER_MIN.values()]],
+                       on=["GAME_DATE", "PLAYER_ID"])
+    w = _pooled_by_day(games, ["MIN", *HUSTLE_PER_MIN.values()])
+    return pd.DataFrame({c: w[c] / w["MIN"] for c in HUSTLE_PER_MIN.values()}).replace(0, np.nan)
+
+
+def _pooled_by_day(games: pd.DataFrame, counts: list[str]) -> pd.DataFrame:
+    """League totals of `counts` for each game day (games: one row per player-game), pooled with the days
+    just before it in the same season until they cover LEAGUE_MIN_GAMES games. Never a later day, and never
+    the season before: NBA.com's counting changes at season starts."""
+    day = games.groupby("GAME_DATE").agg(GAMES=("GAME_ID", "nunique"), **{c: (c, "sum") for c in counts})
+    day.index = pd.to_datetime(day.index)
+    pooled = []
+    for _, d in day.groupby(day.index.map(lambda t: tracking.season_of(t.date()))):
+        total = d.cumsum().to_numpy()                                    # season totals through each day
+        before = np.vstack([np.zeros(d.shape[1]), total[:-1]])           # and before it
+        # the latest first day that still gives LEAGUE_MIN_GAMES games (the season so far if it has fewer)
+        first = np.searchsorted(before[:, 0], total[:, 0] - LEAGUE_MIN_GAMES, side="right") - 1
+        pooled.append(pd.DataFrame(total - before[np.clip(first, 0, None)], index=d.index, columns=d.columns))
+    return pd.concat(pooled)
+
+
+def add_hustle(p: pd.DataFrame) -> pd.DataFrame:
+    """Each game's hustle counts (HUSTLE_PER_MIN). Blank for a game whose day isn't downloaded yet, and box
+    outs blank before BOX_OUTS_FROM. A player plays one game a day."""
+    h = hustle.load()[["GAME_DATE", "PLAYER_ID", *HUSTLE_PER_MIN.values()]].drop_duplicates(["GAME_DATE", "PLAYER_ID"])
+    h["GAME_DATE"] = pd.to_datetime(h["GAME_DATE"])
+    p = p.merge(h, on=["GAME_DATE", "PLAYER_ID"], how="left")
+    p["BOX_OUTS"] = p["BOX_OUTS"].where(p["SEASON"] >= BOX_OUTS_FROM)
+    return p
+
+
+def hustle_features(p: pd.DataFrame) -> pd.DataFrame:
+    """HUSTLE inputs, as of before each game: each hustle count per minute against the league's rate that
+    day, over his last 10 games with hustle stats (1.0 = league average). p: sorted by player and date."""
+    league = league_hustle_rates().reindex(p["GAME_DATE"].to_numpy()).set_axis(p.index)
+    temp = {"_HMIN": p["MIN"].where(p["DEFLECTIONS"].notna()), "_HBOX_MIN": p["MIN"].where(p["BOX_OUTS"].notna())}
+    temp.update({f"_HREL_{col}": p[col] / league[col] for col in HUSTLE_PER_MIN.values()})
+    p = p.assign(**temp)
+    s = lambda col, n: lag(p, "PLAYER_ID", col, n, "sum")
+    minutes = {col: s("_HBOX_MIN" if col == "BOX_OUTS" else "_HMIN", 10).clip(lower=1) for col in HUSTLE_PER_MIN.values()}
+    new = {f"{name}_REL_L10": s(f"_HREL_{col}", 10) / minutes[col] for name, col in HUSTLE_PER_MIN.items()}
     return pd.concat([p.drop(columns=list(temp)), pd.DataFrame(new, index=p.index)], axis=1).copy()
 
 
@@ -485,6 +548,7 @@ def build_features(p: pd.DataFrame, t: pd.DataFrame, overrides: dict | None = No
     p["TS_L40"] = s("PTS", 40) / (2 * s("TSA", 40)).clip(lower=1)
     p = tracking_features(p)
     p = shot_features(p)
+    p = hustle_features(p)
 
     p["PTS_SEASON"] = lag(p, PS, "PTS", expanding=True)
     p["MIN_SEASON"] = lag(p, PS, "MIN", expanding=True)
@@ -648,6 +712,11 @@ WITH_TRACKING = {"TOV", "REB", "XOREB", "RA", "X2PM", "XFTA"}
 # 4g): mostly shot and free-throw volume, where a player shoots and how he gets his shots. It made no difference
 # to Points and 14 others, so they go without.
 WITH_SHOTS = {"XFGA", "X3PA", "X2PA", "XFTA", "XFTM", "PRA", "STL", "BLK", "BS", "XDREB"}
+# Hustle stats helped these 5 on 2023-24 and 2024-25 and none got worse on 2025-26 or 2026-27 so far (E13,
+# TRAINING.md 4i): deflections steals (better in every period), contested shots blocks, box outs offensive
+# rebounds. Blks+Stls just missed on the deciding seasons and was better on both later ones. No difference to
+# Points and 17 others; Pts+Asts was slightly worse.
+WITH_HUSTLE = {"STL", "BLK", "BS", "XOREB", "XDUNK", "XFTA"}
 
 
 def stat_feature_list(key: str) -> list[str]:
@@ -655,7 +724,8 @@ def stat_feature_list(key: str) -> list[str]:
     if others:
         others += ["PTS_L10", "PTS_SEASON", "PTS_STD_L10"]
     return ([f"{key}_{h}" for h in HIST] + others + SHARED + ([] if key in NO_LINEUPS else LINEUPS)
-            + (TRACKING_REL if key in WITH_TRACKING else []) + (SHOTS if key in WITH_SHOTS else []))
+            + (TRACKING_REL if key in WITH_TRACKING else []) + (SHOTS if key in WITH_SHOTS else [])
+            + (HUSTLE if key in WITH_HUSTLE else []))
 
 
 def history_keys(keys) -> list[str]:
@@ -709,8 +779,8 @@ def load_features(rebuild: bool = False) -> pd.DataFrame:
     (compressed: ~200 MB instead of ~570 MB, identical data) and rebuilt whenever the box scores
     or this file change."""
     cache = FEATURES_CACHE
-    srcs = [PLAYER_LOGS, TEAM_LOGS, Path(__file__)] + [f for f in (DUNKS, STARTERS, TRACKING_FILE, SHOTS_FILE)
-                                                       if f.exists()]
+    srcs = [PLAYER_LOGS, TEAM_LOGS, Path(__file__)] + [
+        f for f in (DUNKS, STARTERS, TRACKING_FILE, SHOTS_FILE, HUSTLE_FILE) if f.exists()]
     if not rebuild and cache.exists() and cache.stat().st_mtime > max(f.stat().st_mtime for f in srcs):
         return pd.read_pickle(cache)
     p, t = load_raw()

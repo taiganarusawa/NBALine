@@ -398,6 +398,15 @@ Pick a day and see the lines that hit even though the model gave them little cha
 - Downloaded with the box scores: this season every run, a month per request. If it fails, the last
   saved copy is used.
 
+**Hustle stats** (NBA.com's hustle stats, `nbaline/hustle.py`, 2017-18 on). Reliability: fair.
+- Deflections, contested 2s and 3s, screen assists, loose balls and box outs, logged by people at each game.
+- Their counting has shifted over the years (deflections +15% from 2024-25, contested shots down 40%
+  since 2017-18), so each game is measured against the league's rate that night, like tracking.
+- Box outs are used only from 2022-23: before that every box out was logged, not just the ones that won
+  the ball. Charges drawn are left out: too rare, and arenas log them very differently.
+- Used by the 6 stats where they tested better: Steals, Blocked Shots, Blks+Stls, Offensive Rebounds,
+  Dunks and Free Throws Attempted (`TRAINING.md` 4i).
+
 **PrizePicks lines.** You paste or type them. Lines move during the day, so use the number you can
 actually play.
 

@@ -35,8 +35,7 @@ MEASURES = {
 }
 COLUMNS = [c for cols in MEASURES.values() for c in cols]
 FIRST_SEASON = 2017     # the first season the models train on
-RECHECK_DAYS = 7        # a recent day missing a game's worth of players (MISSING_GAME) is downloaded again
-MISSING_GAME = 5        # tracking can leave out a player or two with a few seconds played; a whole game is ~20
+RECHECK_DAYS = 7        # a recent day saved without one of its teams (a game still being played) is downloaded again
 PAUSE = 0.6             # seconds between requests: be polite to stats.nba.com
 
 
@@ -89,22 +88,23 @@ def update(save_every: int = 25) -> int:
 def update_days(path: Path, fetch: Callable[[date], pd.DataFrame], saved_rows: Callable[[], pd.DataFrame],
                 label: str, save_every: int = 25) -> int:
     """Download every game day in the box scores after the last one saved in `path`, and any recent day
-    saved without one of its games (still being played when it was downloaded). Saves as it goes, so a
-    stopped run picks up where it left off. A few old days have no tracking at NBA.com (the 2020 restart,
-    Aug 1-14, and two single days): they stay missing rather than being asked for again every time.
+    saved without one of the teams that played (its game still going when it was downloaded). Teams, not
+    players: the dashboards leave out players with nothing to count (hustle: often 20 a day).
+    Saves as it goes, so a stopped run picks up where it left off. A few old days have no data at NBA.com
+    (the 2020 restart, Aug 1-14, and for tracking two single days): they stay missing rather than being
+    asked for again every time.
     Used for tracking and hustle stats (hustle.py), which both come one day at a time.
     Returns how many days were downloaded."""
     if not PLAYER_LOGS.exists():
         return 0
-    logs = pd.read_csv(PLAYER_LOGS, usecols=["GAME_DATE", "SEASON_ID"])
+    logs = pd.read_csv(PLAYER_LOGS, usecols=["GAME_DATE", "SEASON_ID", "TEAM_ID"])
     logs = logs[logs["SEASON_ID"].astype(str).str[1:].astype(int) >= FIRST_SEASON]
-    played = logs.groupby("GAME_DATE").size()
+    played = logs.groupby("GAME_DATE")["TEAM_ID"].nunique()
     saved = saved_rows()
-    have = saved.groupby("GAME_DATE").size()
+    have = saved.groupby("GAME_DATE")["TEAM_ID"].nunique()
     recent = (date.today() - timedelta(days=RECHECK_DAYS)).isoformat()
     last = max(have.index, default="")
-    todo = [d for d, n in played.items()
-            if d > last or (d >= recent and have.get(d, 0) <= n - MISSING_GAME)]
+    todo = [d for d, n in played.items() if d > last or (d >= recent and have.get(d, 0) < n)]
     done = []
     for i, d in enumerate(todo, 1):
         done.append(fetch(date.fromisoformat(d)))

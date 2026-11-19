@@ -113,6 +113,13 @@ reg(Config("E12_shots", BEST_FEATS + F.LINEUPS + F.SHOTS, **B1, params=TUNED, no
 reg(replace(points_recipe(), name="FINAL_S", features=points_recipe().features + F.SHOTS,
             note="FINAL + shot profile"))
 
+# ---- E13: hustle stats (hustle.py, every season): deflections, contested 2s and 3s, screen assists, loose
+# balls and box outs (from 2022-23), per minute against the league. Compared against E10_lineups on the tuning
+# folds; FINAL_H is the final model with them.
+reg(Config("E13_hustle", BEST_FEATS + F.LINEUPS + F.HUSTLE, **B1, params=TUNED, note="+ hustle stats"))
+reg(replace(points_recipe(), name="FINAL_H", features=points_recipe().features + F.HUSTLE,
+            note="FINAL + hustle stats"))
+
 
 def run(cfg: Config, folds, df) -> pd.DataFrame:
     rows, per_row = [], {}

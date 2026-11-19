@@ -55,7 +55,8 @@ def fetch_day(day: date) -> pd.DataFrame:
 def load() -> pd.DataFrame:
     """Every saved row (empty, with the right columns, if nothing is saved yet)."""
     if not HUSTLE.exists():
-        return pd.DataFrame(columns=["GAME_DATE", "PLAYER_ID", "TEAM_ID", *COLUMNS])
+        return pd.DataFrame(columns=["GAME_DATE", "PLAYER_ID", "TEAM_ID", *COLUMNS]).astype(
+            {"PLAYER_ID": int, "TEAM_ID": int, **{c: float for c in COLUMNS}})
     return pd.read_csv(HUSTLE)
 
 

@@ -1,8 +1,9 @@
 """Download NBA regular-season game logs (every player, every team) from stats.nba.com,
 plus each season's shot chart (nbaline/shots.py: dunks, which box scores don't count, and where and
 how each player shot), who started each game since 2023-24 (NBA.com's daily lineups,
-nbaline/lineups.py), and each game's player tracking: potential assists, rebound chances, drives,
-touches (nbaline/tracking.py).
+nbaline/lineups.py), each game's player tracking: potential assists, rebound chances, drives,
+touches (nbaline/tracking.py), and its hustle stats: deflections, contested shots, box outs
+(nbaline/hustle.py).
 
 Usage:
     python fetch_data.py              # last 10 seasons (incl. the current one)
@@ -17,7 +18,7 @@ from datetime import date
 import pandas as pd
 from nba_api.stats.endpoints import leaguegamelog
 
-from nbaline import lineups, shots, tracking
+from nbaline import hustle, lineups, shots, tracking
 from nbaline.paths import DUNKS, PLAYER_LOGS, RAW, SHOTS, TEAM_LOGS
 
 
@@ -112,6 +113,11 @@ def main():
         print(f"Saved data/tracking.csv: {tracking.update()} new game day(s)")
     except Exception as e:
         print(f"Couldn't download player tracking ({type(e).__name__}: {e}); keeping what's saved")
+    # hustle stats for each new game day (deflections, contested shots, box outs, ...): optional too
+    try:
+        print(f"Saved data/hustle.csv: {hustle.update()} new game day(s)")
+    except Exception as e:
+        print(f"Couldn't download hustle stats ({type(e).__name__}: {e}); keeping what's saved")
 
 
 # Box score columns whose team total is the sum of its players' (shooting % and +/- follow from them).

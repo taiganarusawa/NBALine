@@ -37,8 +37,10 @@ TUNE_FOLDS, HOLDOUT = [2023, 2024], 2025
 MAX_CALIBRATION_ERROR = 0.03  # "said 60%" may be off from "happened X%" by this much on average, no more
 # Final models trained side by side, each in its own process. With an NVIDIA GPU they share it
 # (modeling.training_device); on the CPU each uses every thread. (Fewer CPU threads each would be
-# faster still, but the thread count changes the trees slightly.)
-TRAIN_AT_ONCE = 4
+# faster still, but the thread count changes the trees slightly.) Each process needs about 2.4 GB of
+# memory, mostly the GPU libraries: 4 at once ran a 16 GB PC out of memory with other apps open (Nov 19,
+# 2026), so 3. How many run at once doesn't change the models.
+TRAIN_AT_ONCE = 3
 NAMES = {k: F.STAT_NAMES[k] for k in F.OTHER_STATS}
 
 
@@ -142,9 +144,9 @@ def final_recipe(key: str, ev: pd.DataFrame) -> tuple[Config, dict]:
     return stat_recipe(key, info["dist"]), info
 
 
-def train(keys: list | None = None):
+def train(keys: list | None = None, at_once: int = TRAIN_AT_ONCE):
     """Train the final model for every tested stat (or just `keys`). A model that already learned
-    from exactly this data is kept as it is; the others are trained TRAIN_AT_ONCE at a time."""
+    from exactly this data is kept as it is; the others are trained `at_once` at a time."""
     ev = OUT / "stat_models.csv"
     if not ev.exists():
         sys.exit("Run  python stat_models.py --evaluate  first (it chooses each stat's settings).")
@@ -167,7 +169,7 @@ def train(keys: list | None = None):
     del df
 
     if todo:
-        with ProcessPoolExecutor(min(TRAIN_AT_ONCE, len(todo)), initializer=_use_training_rows,
+        with ProcessPoolExecutor(min(at_once, len(todo)), initializer=_use_training_rows,
                                  initargs=(rows,)) as pool:
             jobs = {pool.submit(_fit_and_save, key, cfg, inner): (key, info) for key, cfg, info in todo}
             for job in as_completed(jobs):
@@ -179,7 +181,7 @@ def train(keys: list | None = None):
     print("Saved models/stat_*.pkl and models/stats.json")
 
 
-def ab_test(group: str, folds: list[int], keys: list | None = None):
+def ab_test(group: str, folds: list[int], keys: list | None = None, at_once: int = TRAIN_AT_ONCE):
     """Do extra inputs help the stat models? Each stat's final settings before and after a change (AB_TESTS:
     a feature group added, or swapped for another version of it), trained on the seasons before each fold
     and scored on it: Brier and calibration error
@@ -193,7 +195,7 @@ def ab_test(group: str, folds: list[int], keys: list | None = None):
     rows = df[_columns([stat_recipe(key, ev.loc[key]["dist"]) for key in keys], keys, out + added)]
     del df
     scored = {}   # (key, fold, changed) -> each test row's squared error and night
-    with ProcessPoolExecutor(TRAIN_AT_ONCE, initializer=_use_training_rows, initargs=(rows,)) as pool:
+    with ProcessPoolExecutor(at_once, initializer=_use_training_rows, initargs=(rows,)) as pool:
         futures = {pool.submit(_ab_fold, key, S, out, added, changed, ev.loc[key]["dist"]): (key, S, changed)
                    for key, S, changed in jobs}
         for job in as_completed(futures):
@@ -235,7 +237,7 @@ def night_bootstrap(diff: np.ndarray, nights: np.ndarray, draws: int = 1000) -> 
 # Input changes to test, as (inputs taken out, inputs put in). Most add a group; tracking_rel swaps the
 # tracking inputs for the same ones measured against the league under the same counting (TRAINING.md 4h).
 AB_TESTS = {"lineups": ([], F.LINEUPS), "tracking": ([], F.TRACKING), "shots": ([], F.SHOTS),
-            "tracking_rel": (F.TRACKING, F.TRACKING_REL)}
+            "tracking_rel": (F.TRACKING, F.TRACKING_REL), "hustle": ([], F.HUSTLE)}
 
 
 def _ab_fold(key: str, S: int, out: list, added: list, changed: bool, dist: str) -> dict:
@@ -291,13 +293,15 @@ if __name__ == "__main__":
     ap.add_argument("--only", help="comma-separated keys, e.g. XFGA,XFTM (just these stats)")
     ap.add_argument("--ab", choices=sorted(AB_TESTS), help="test an input change: before vs. after, e.g. lineups")
     ap.add_argument("--folds", default="2024,2025", help="with --ab: seasons to test on")
+    ap.add_argument("--jobs", type=int, default=TRAIN_AT_ONCE,
+                    help="models trained at once (each process needs about 2.4 GB of memory)")
     a = ap.parse_args()
     only = a.only.split(",") if a.only else None
     if a.ab:
-        ab_test(a.ab, [int(s) for s in a.folds.split(",")], only)
+        ab_test(a.ab, [int(s) for s in a.folds.split(",")], only, a.jobs)
     if a.evaluate:
         evaluate(redo=a.redo, only=only)
     if a.train:
-        train(only)
+        train(only, a.jobs)
     if not (a.evaluate or a.train or a.ab):
         ap.print_help()

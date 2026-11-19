@@ -548,7 +548,57 @@ arenas log far more than others (box-score steals and rebounds show how much are
   be left out or used from 2022-23 on.
 - Charges are too rare and depend too much on who logs them.
 
-Not tested in the models yet.
+**Test** (`E13_hustle`, `python stat_models.py --ab hustle`). **6 inputs** (`features.HUSTLE`), each per
+minute against the league's rate under the same counting (like 4h), over his last 10 games: deflections,
+contested 2s, contested 3s, screen assists, loose balls, and box outs from 2022-23.
+
+Checked before testing:
+
+- For the same players across the counting steps, the inputs barely move: deflections from 2023-24 to
+  2024-25 and screen assists from 2024-25 to 2025-26 both change 0% (up for 51% and 50% of players).
+- A hand check for Alex Caruso matched, and the app builds exactly the same values as training.
+- The leaders make sense: Matisse Thybulle and Caruso in deflections, Donovan Clingan and Luke Kornet in
+  contested 2s, Mitchell Robinson and Zach Edey in box outs.
+
+**Points:** no clear difference either way.
+
+| Test | CRPS | Change, 95% interval |
+|---|---|---|
+| XGBoost, 2022-23 to 2024-25 (vs. `E10_lineups`) | 3.4948 → 3.4940 | −0.0008 [−0.0023, +0.0009] |
+| Real model, 2025-26 and 2026-27 so far | 3.4520 → 3.4503 | −0.0017 [−0.0042, +0.0008] |
+
+**Other stats**, decided on 2023-24 + 2024-25, checked once on 2025-26. This season so far (2026-27) was
+checked too for the stats that were better anywhere, as for the tracking fix.
+
+| Stat | 2023-25 | 2025-26 check | 2026-27 so far |
+|---|---|---|---|
+| Steals | 0.2285 → 0.2281, **better** | 0.2288 → 0.2281, **better** | 0.2202 → 0.2187, **better** |
+| Free Throws Attempted | 0.2364 → 0.2363, **better** | no clear difference (−0.0001) | 0.2311 → 0.2306, **better** |
+| Blocked Shots | 0.1984 → 0.1981, **better** | no clear difference (−0.0001) | no clear difference (−0.0002) |
+| Offensive Rebounds | 0.2280 → 0.2277, **better** | no clear difference (0.0000) | no clear difference (0.0000) |
+| Dunks | 0.1587 → 0.1586, **better** | no clear difference (0.0000) | no clear difference (−0.0001) |
+| Blks+Stls | no clear difference (−0.0002) | 0.2301 → 0.2297, **better** | 0.2268 → 0.2258, **better** |
+| Defensive Rebounds | no clear difference | 0.2359 → 0.2356, **better** | no clear difference (−0.0004) |
+| Personal Fouls | no clear difference | 0.2354 → 0.2349, **better** | no clear difference (−0.0005) |
+| 3-PT Made | no clear difference | 0.2133 → 0.2132, **better** | no clear difference (+0.0001) |
+| 15 others | no clear difference | no clear difference | |
+| Pts+Asts | 0.2366 → 0.2368, worse (real) | no clear difference | |
+
+Saved as `experiments/stat_ab_hustle_tune.csv`, `_2025.csv` and `_2026.csv`.
+
+**Decision:** 6 stats use the hustle stats (`features.WITH_HUSTLE`): the 5 that passed the rule (better on
+the deciding seasons, no worse on 2025-26), plus Blks+Stls, which just missed on the deciding seasons,
+was better on both later periods, and whose two parts both passed. Defensive Rebounds, Personal Fouls and
+3-PT Made were better on 2025-26 only, so they go without. The daily update downloads each new game day's
+hustle stats (one request).
+
+**What it shows:** deflections predict steals better in every period, the clearest gain from any input
+since starting lineups. Contested shots help blocks and box outs help offensive rebounds, as expected.
+Like tracking and the shot profile, hustle stats don't help Points or the other scoring stats.
+
+**Memory:** the 2025-26 check crashed once: four training processes at about 2.4 GB each (mostly the GPU
+libraries) ran the 16 GB PC out of memory with other apps open. `stat_models.py` now trains 3 at a time
+(`--jobs` changes it); how many run at once doesn't change the models.
 
 ---
 
@@ -587,9 +637,11 @@ prediction (`nbaline/modeling.py`, `stat_models.py`):
   these change (a corrected old box score, a new input, a new season), it's fitted again.
 - **A model whose final fit would learn from exactly the same rows is kept as it is** (same fingerprint
   check). An update that finds no new games retrains nothing.
-- **Four stat models train side by side**, each in its own process with every CPU thread. Giving each
-  fewer threads would be faster still, but XGBoost's trees depend slightly on the thread count, so the
-  models would no longer match.
+- **Several stat models train side by side** (3 since Nov 19, 2026; 4 before), each in its own process
+  with every CPU thread. Giving each fewer threads would be faster still, but XGBoost's trees depend
+  slightly on the thread count, so the models would no longer match. Each process needs about 2.4 GB of
+  memory, and 4 at once ran the 16 GB PC out of memory with other apps open; how many run at once doesn't
+  change the models.
 
 Checked on the November 11 data: all 26 models, the full way and the new way, gave identical
 projections, chances of More and push chances (largest difference 0). Times on this computer:
@@ -627,4 +679,4 @@ fingerprint includes GPU or CPU, so switching between them retrains everything o
 | All 26 models from scratch | ~10 min | 5.8 min (Points 1.7, other stats 4.1) |
 
 The whole retrain isn't 3× faster: the Points neural net (scikit-learn) and building the inputs stay on
-the CPU, and the four stat models training side by side share one GPU.
+the CPU, and the stat models training side by side share one GPU.
