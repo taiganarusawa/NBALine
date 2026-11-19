@@ -54,7 +54,7 @@ TRACKING = [f"{k}_PM_L10" for k in TRACKING_PER_MIN] + ["AST_PER_POT_L20", "REB_
 # Shot profile (shots.py, NBA.com's shot charts, every season): where and how he shoots. Attempts per minute
 # in each zone and of self-created jumpers, and his average shot distance, over his last 10 games; over his
 # last 20, his shooting at the rim, the points per shot his zones would score at league-average accuracy,
-# and how far above or below that he shot. Tested on its own (E12).
+# and how far above or below that he shot. Tested on its own (E12): used by the stats in WITH_SHOTS.
 SHOT_KINDS = [*shots.ZONES, "SELF"]
 SHOTS = ([f"{k}_FGA_PM_L10" for k in SHOT_KINDS]
          + ["SHOT_FEET_L10", "RIM_PCT_L20", "XPTS_PER_SHOT_L20", "SHOT_MAKING_L20"])
@@ -587,6 +587,10 @@ NO_LINEUPS = {"XTD"}
 # 4f): rebound chances the rebound stats, touches turnovers. It made no difference to 17 others, and made
 # assists and Pts+Asts worse, so they go without.
 WITH_TRACKING = {"TOV", "REB", "XOREB", "RA", "X2PM", "XFTA"}
+# The shot profile helped these 10 stats on 2023-24 and 2024-25 and none got worse on 2025-26 (E12, TRAINING.md
+# 4g): mostly shot and free-throw volume, where a player shoots and how he gets his shots. It made no difference
+# to Points and 14 others, so they go without.
+WITH_SHOTS = {"XFGA", "X3PA", "X2PA", "XFTA", "XFTM", "PRA", "STL", "BLK", "BS", "XDREB"}
 
 
 def stat_feature_list(key: str) -> list[str]:
@@ -594,7 +598,7 @@ def stat_feature_list(key: str) -> list[str]:
     if others:
         others += ["PTS_L10", "PTS_SEASON", "PTS_STD_L10"]
     return ([f"{key}_{h}" for h in HIST] + others + SHARED + ([] if key in NO_LINEUPS else LINEUPS)
-            + (TRACKING if key in WITH_TRACKING else []))
+            + (TRACKING if key in WITH_TRACKING else []) + (SHOTS if key in WITH_SHOTS else []))
 
 
 def history_keys(keys) -> list[str]:

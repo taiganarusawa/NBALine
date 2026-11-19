@@ -1,7 +1,8 @@
 """Download NBA regular-season game logs (every player, every team) from stats.nba.com,
-plus each season's shot chart for counting dunks (box scores don't have them), who started
-each game since 2023-24 (NBA.com's daily lineups, nbaline/lineups.py), and each game's player
-tracking: potential assists, rebound chances, drives, touches (nbaline/tracking.py).
+plus each season's shot chart (nbaline/shots.py: dunks, which box scores don't count, and where and
+how each player shot), who started each game since 2023-24 (NBA.com's daily lineups,
+nbaline/lineups.py), and each game's player tracking: potential assists, rebound chances, drives,
+touches (nbaline/tracking.py).
 
 Usage:
     python fetch_data.py              # last 10 seasons (incl. the current one)
@@ -14,10 +15,10 @@ import argparse
 import time
 from datetime import date
 import pandas as pd
-from nba_api.stats.endpoints import leaguegamelog, shotchartdetail
+from nba_api.stats.endpoints import leaguegamelog
 
-from nbaline import lineups, tracking
-from nbaline.paths import DUNKS, PLAYER_LOGS, RAW, TEAM_LOGS
+from nbaline import lineups, shots, tracking
+from nbaline.paths import DUNKS, PLAYER_LOGS, RAW, SHOTS, TEAM_LOGS
 
 
 def current_season_start(today: date | None = None) -> int:
@@ -47,30 +48,9 @@ def download(season: str, kind: str) -> pd.DataFrame:
         f"{kind} logs for {season}")
 
 
-def download_dunks(season: str, game_dates: pd.Series) -> pd.DataFrame:
-    """Made dunks per player per game, from the season's shot chart: every shot has a type, like
-    "Alley Oop Dunk Shot". Everyone who took a shot gets a row, so 0-dunk games are kept too.
-    The shot chart stops at about 100,000 shots per request (half a season), so it comes a month
-    at a time, for each month that had games."""
-    months = sorted({d[:7] for d in game_dates.astype(str)})  # "2025-11", ...
-    parts = []
-    for month in months:
-        first = pd.Timestamp(month + "-01")
-        last = first + pd.offsets.MonthEnd(0)
-        parts.append(with_retries(lambda: shotchartdetail.ShotChartDetail(
-            team_id=0, player_id=0, season_nullable=season, season_type_all_star="Regular Season",
-            context_measure_simple="FGA", date_from_nullable=f"{first:%m/%d/%Y}",
-            date_to_nullable=f"{last:%m/%d/%Y}", timeout=120).get_data_frames()[0], f"shots for {month}"))
-        time.sleep(1)
-    shots = pd.concat(parts)
-    dunk = shots["ACTION_TYPE"].str.contains("Dunk", case=False)
-    shots["DUNKS"] = (dunk & (shots["SHOT_MADE_FLAG"] == 1)).astype(int)
-    return shots.groupby(["GAME_ID", "PLAYER_ID"], as_index=False)["DUNKS"].sum()
-
-
 def season_file(path, start: int, cur: int, fetch, label: str, required: bool = True) -> pd.DataFrame:
     """One season's data: from the cache, or downloaded (the current season always is).
-    A download that fails for an optional file (dunks) falls back to the last saved copy."""
+    A download that fails for an optional file (shot charts) falls back to the last saved copy."""
     if path.exists() and start != cur:
         df = pd.read_csv(path, dtype={"GAME_ID": str})
         print(f"  {label}: cached ({len(df):,} rows)")
@@ -98,15 +78,15 @@ def main():
     cur = current_season_start()
     starts = list(range(cur - args.seasons + 1, cur + 1))
 
-    players, teams, dunks = [], [], []
+    players, teams, charts = [], [], []
     for start in starts:
         s = season_str(start)
         players.append(season_file(RAW / f"player_{s}.csv", start, cur, lambda: download(s, "P"), f"{s} P"))
         teams.append(season_file(RAW / f"team_{s}.csv", start, cur, lambda: download(s, "T"), f"{s} T"))
-        dunks.append(season_file(RAW / f"dunks_{s}.csv", start, cur,
-                                 lambda: download_dunks(s, players[-1]["GAME_DATE"]), f"{s} dunks", required=False))
+        charts.append(season_file(RAW / f"shots_{s}.csv", start, cur, lambda: shots.download_season(
+            s, players[-1]["GAME_DATE"]), f"{s} shot chart", required=False))
 
-    players, teams, dunks = pd.concat(players), pd.concat(teams), pd.concat(dunks)
+    players, teams, charts = pd.concat(players), pd.concat(teams), pd.concat(charts)
     # The feed includes games that are still being played (partial box scores, no W/L yet).
     # Treating a halftime box score as a finished game would corrupt features and training.
     live = set(teams.loc[teams["WL"].isna(), "GAME_ID"].astype(str))
@@ -115,10 +95,11 @@ def main():
         teams = teams[~teams["GAME_ID"].astype(str).isin(live)]
         print(f"\nSkipped {len(live)} game(s) still in progress (no final result yet)")
     players, teams = check_team_totals(players, teams)
-    dunks = dunks[dunks["GAME_ID"].astype(str).isin(set(teams["GAME_ID"].astype(str)))]  # finished games only
-    changed = [path.name for df, path in ((players, PLAYER_LOGS), (teams, TEAM_LOGS), (dunks, DUNKS))
+    charts = charts[charts["GAME_ID"].astype(str).isin(set(teams["GAME_ID"].astype(str)))]  # finished games only
+    dunks = charts[["GAME_ID", "PLAYER_ID", "DUNKS"]]
+    changed = [path.name for df, path in ((players, PLAYER_LOGS), (teams, TEAM_LOGS), (dunks, DUNKS), (charts, SHOTS))
                if save_if_changed(df, path)]
-    print(f"\nSaved data/player_logs.csv, data/team_logs.csv and data/dunks.csv "
+    print(f"\nSaved data/player_logs.csv, team_logs.csv, dunks.csv and shots.csv "
           f"({season_str(starts[0])} to {season_str(cur)}): "
           + (f"{', '.join(changed)} changed" if changed else "no new data"))
     # who started each new game (NBA.com's daily lineups): optional, like dunks; the next run catches up

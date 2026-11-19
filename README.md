@@ -65,7 +65,7 @@ This is a real example: Warriors vs. Pelicans on Nov 9, 2026, using that day's l
 ## How the predictions work
 
 ```
- stats.nba.com ──► fetch_data.py ──► data/player_logs.csv, team_logs.csv, dunks.csv, starters.csv, tracking.csv
+ stats.nba.com ──► fetch_data.py ──► data/player_logs.csv, team_logs.csv, shots.csv, starters.csv, tracking.csv
                                             │
                     nbaline/features.py ◄───┘   inputs for each game, built only from games before it
                             │
@@ -104,6 +104,8 @@ Every input for a game is built only from games played before it.
 - Who's out on both teams, from the official injury report.
 - Tonight's starting lineup, once it's posted.
 - NBA.com player tracking (rebound chances, touches, drives) for the 6 stats where it tested better.
+- His shot profile (shots at the rim, midrange, corner 3s, pull-ups) for the 10 stats where it tested
+  better, mostly shot and free-throw attempts.
 
 ### Labels on a line
 
@@ -124,7 +126,7 @@ Every input for a game is built only from games played before it.
 | Who's out | Official NBA injury report (PDF) | Out and Doubtful count as out; Questionable is flagged |
 | Who's starting | NBA.com's daily starting lineups (2023-24 on) | "Expected" during the day, "Confirmed" about 30 min before tip-off |
 | Player tracking | NBA.com's camera-tracking stats (2017-18 on) | Potential assists, rebound chances, drives, touches |
-| Dunks | NBA.com's shot charts | Box scores don't count dunks |
+| Dunks and shot profile | NBA.com's shot charts (2017-18 on) | Every shot's zone and type; box scores don't count dunks |
 | Live games | NBA.com's live box scores | Refreshed every 15 seconds while a game is on |
 | PrizePicks lines | **You paste them** | NBALine never scrapes PrizePicks |
 
@@ -174,7 +176,7 @@ nbaline/                 the library: everything the commands and the web app sh
   injuries.py            official NBA injury report PDFs, downloaded and parsed
   lineups.py             NBA.com's daily starting lineups
   tracking.py            NBA.com player tracking per game: potential assists, rebound chances, drives, touches
-  shots.py               NBA.com shot charts per game: shots by zone, self-created jumpers (being tested)
+  shots.py               NBA.com shot charts per game: dunks, shots by zone, self-created jumpers
   hustle.py              NBA.com hustle stats per game: deflections, box outs, contested shots (being checked)
   predictor.py           the prediction engine: {player, stat, line} -> calibrated over/under chance
   updater.py             the web app's one-click "Update data & model" job
@@ -203,7 +205,7 @@ experiments.py  tune.py  learning_curve.py                                      
 | Command | What it does |
 |---|---|
 | `python webapp.py` | Starts the web app (or double-click `NBALine.bat`) |
-| `python fetch_data.py` | Downloads the latest box scores, lineups and tracking |
+| `python fetch_data.py` | Downloads the latest box scores, shot charts, lineups and tracking |
 | `python train.py` | Trains the points model |
 | `python stat_models.py --train` | Trains the other 25 stat models (`--evaluate` tests them) |
 | `python predict.py "Player" 28.5` | One prediction on the command line, with its reasons |

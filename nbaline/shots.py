@@ -11,29 +11,24 @@ count dunks; this keeps the rest, summed per player per game:
 
     data/raw/shots_<season>.csv   one file per season (past seasons are downloaded once)
     data/shots.csv                every season, finished games only: GAME_ID, GAME_DATE, PLAYER_ID + COLUMNS
+    data/dunks.csv                just the dunks (GAME_ID, PLAYER_ID, DUNKS), for the Dunks model
 
-    python -m nbaline.shots      # download every season not saved yet, and this season again (~10 minutes)
+fetch_data.py downloads it with the box scores: past seasons once, this season every run (one request
+per month so far, a few seconds).
 """
-import sys
 import time
-from datetime import date
 
 import pandas as pd
 from nba_api.stats.endpoints import shotchartdetail
 
-from .paths import PLAYER_LOGS, RAW, SHOTS
+from .paths import SHOTS
 
 ZONES = {"RIM": ["Restricted Area"], "PAINT": ["In The Paint (Non-RA)"], "MID": ["Mid-Range"],
          "C3": ["Left Corner 3", "Right Corner 3"], "AB3": ["Above the Break 3"]}
 THREES = {"C3", "AB3"}
 SELF_CREATED = r"pull|step back|fadeaway|turnaround jump"   # matched against the shot type, any case
 COLUMNS = ([f"SHOT_{z}_{c}" for z in [*ZONES, "SELF"] for c in ("FGA", "FGM")] + ["SHOT_FEET", "DUNKS"])
-FIRST_SEASON = 2017     # the first season the models train on
 PAUSE = 1.0             # seconds between requests: be polite to stats.nba.com
-
-
-def season_str(start: int) -> str:
-    return f"{start}-{str(start + 1)[-2:]}"   # 2025 -> "2025-26"
 
 
 def _month(season: str, month: str) -> pd.DataFrame:
@@ -84,34 +79,3 @@ def load() -> pd.DataFrame:
         return pd.DataFrame(columns=["GAME_ID", "GAME_DATE", "PLAYER_ID", *COLUMNS]).astype(
             {"PLAYER_ID": int, **{c: float for c in COLUMNS}})
     return pd.read_csv(SHOTS, dtype={"GAME_ID": str})
-
-
-def update(current: int) -> int:
-    """Download each season since FIRST_SEASON that isn't saved yet, and the current season again (its
-    games keep coming), then save data/shots.csv with the games in the box scores (finished ones).
-    Returns how many seasons were downloaded."""
-    logs = pd.read_csv(PLAYER_LOGS, usecols=["GAME_ID", "GAME_DATE", "SEASON_ID"], dtype={"GAME_ID": str})
-    logs["SEASON"] = logs["SEASON_ID"].astype(str).str[1:].astype(int)
-    seasons, downloaded = [], 0
-    for start in range(FIRST_SEASON, current + 1):
-        path = RAW / f"shots_{season_str(start)}.csv"
-        if path.exists() and start != current:
-            seasons.append(pd.read_csv(path, dtype={"GAME_ID": str}))
-            continue
-        print(f"  {season_str(start)} shot charts: downloading...", flush=True)
-        df = download_season(season_str(start), logs.loc[logs["SEASON"] == start, "GAME_DATE"])
-        df.to_csv(path, index=False)
-        seasons.append(df)
-        downloaded += 1
-    shots = pd.concat(seasons)
-    shots = shots[shots["GAME_ID"].isin(set(logs["GAME_ID"]))]
-    shots.sort_values(["GAME_ID", "PLAYER_ID"]).to_csv(SHOTS, index=False)
-    return downloaded
-
-
-if __name__ == "__main__":
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    t0 = time.time()
-    today = date.today()
-    n = update(today.year if today.month >= 10 else today.year - 1)
-    print(f"Saved {SHOTS.name}: {n} season(s) downloaded ({time.time() - t0:.0f}s)")

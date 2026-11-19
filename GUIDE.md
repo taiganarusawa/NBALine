@@ -386,6 +386,15 @@ Pick a day and see the lines that hit even though the model gave them little cha
   Rebs+Asts, Two Pointers Made and Free Throws Attempted (`TRAINING.md` 4f).
 - If a day's download fails, the inputs use his other recent games.
 
+**Shot profile and dunks** (NBA.com's shot charts, `nbaline/shots.py`, 2017-18 on). Reliability: high.
+- Every shot with its zone, distance and type.
+- Checked against the box scores: each player's zone attempts plus half-court heaves add up to his
+  field-goal attempts, and his makes match in 99.9% of games.
+- Used by the 10 stats where it tested better: FG, 3-PT and two-point attempts, free throws made and
+  attempted, PRA, steals, blocks, blocks+steals and defensive rebounds (`TRAINING.md` 4g).
+- Downloaded with the box scores: this season every run, a month per request. If it fails, the last
+  saved copy is used.
+
 **PrizePicks lines.** You paste or type them. Lines move during the day, so use the number you can
 actually play.
 

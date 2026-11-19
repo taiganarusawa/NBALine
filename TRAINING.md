@@ -392,6 +392,65 @@ box score doesn't: rebound chances for the rebounding stats, touches for turnove
 to a half of what starting lineups gave, and the scoring stats, the model's weakest against real PrizePicks
 lines, gained nothing.
 
+## 4g. Shot profile (`E12_shots`, November 2026)
+
+The same outside review suggested where and how a player shoots: at the rim or from midrange, corner or
+above-the-break 3s, pull-ups or catch-and-shoot. NBA.com's shot chart lists every shot with its zone,
+distance and type, and the download for counting dunks already fetched it. `nbaline/shots.py` now keeps
+the rest, summed per player per game, for every game since 2017-18. Checked against our box scores: each
+player's zone attempts plus half-court heaves add up to his field-goal attempts, his makes match in 99.9%
+of games, and the dunk counts are identical to the old download.
+
+**10 inputs** (`features.SHOTS`):
+
+- Over his last 10 games, per minute: shots at the rim, other paint shots, midrange shots, corner 3s,
+  above-the-break 3s, and self-created jumpers (pull-ups, step-backs, fadeaways, turnarounds). Plus his
+  average shot distance.
+- Over his last 20: his shooting at the rim, the points per shot his zones would score at league-average
+  accuracy, and how far above or below that he actually shot ("shot-making").
+- League accuracy in each zone is taken over the year before each game day, so it never uses the game
+  itself or anything after it.
+
+Checked by hand for James Harden (Jan 2019), and the app builds exactly the same inputs as training.
+
+**Points:** no clear difference either way.
+
+| Test | CRPS | Change, 95% interval |
+|---|---|---|
+| XGBoost, 2022-23 to 2024-25 (vs. `E10_lineups`) | 3.4948 → 3.4935 | −0.0013 [−0.0031, +0.0002] |
+| Real model, 2025-26 and 2026-27 so far | 3.4520 → 3.4510 | −0.0010 [−0.0035, +0.0016] |
+
+**Other stats** (`python stat_models.py --ab shots`, over/under Brier at the usual line, resampling whole
+nights): decided on 2023-24 + 2024-25, then checked once on 2025-26. Each stat's baseline is its current
+model, tracking included where it has it.
+
+| Stat | 2023-25 | 2025-26 check |
+|---|---|---|
+| 3-PT Attempted | 0.2210 → 0.2205, **better** | 0.2209 → 0.2205, **better** |
+| Two Pointers Attempted | 0.2339 → 0.2336, **better** | 0.2309 → 0.2305, **better** |
+| FG Attempted | 0.2319 → 0.2316, **better** | 0.2311 → 0.2308, **better** |
+| Pts+Rebs+Asts | 0.2357 → 0.2354, **better** | 0.2339 → 0.2336, **better** |
+| Free Throws Attempted | 0.2365 → 0.2362, **better** | 0.2388 → 0.2385, **better** |
+| Free Throws Made | 0.2284 → 0.2280, **better** | no clear difference (−0.0003) |
+| Steals | 0.2287 → 0.2285, **better** | no clear difference (−0.0002) |
+| Blocked Shots | 0.1986 → 0.1984, **better** | no clear difference (−0.0001) |
+| Blks+Stls | 0.2312 → 0.2311, **better** | no clear difference (0.0000) |
+| Defensive Rebounds | 0.2356 → 0.2354, **better** | no clear difference (0.0000) |
+| 14 others, Fantasy Score, Pts+Rebs, Pts+Asts and Assists among them | no clear difference | |
+| Double Doubles | no clear difference | 0.0632 → 0.0634, worse (real) |
+
+Calibration stayed under the 3% limit for every stat on 2025-26 (the largest: Personal Fouls 2.6%).
+Saved as `experiments/stat_ab_shots_tune.csv` and `stat_ab_shots_2025.csv`.
+
+**Decision:** the 10 stats that tested better use the shot profile (`features.WITH_SHOTS`); Points and the
+other 15 stats keep their inputs. The daily update gets it from the shot-chart download it already did for
+dunks, so it costs no extra requests.
+
+**What it shows:** the shot profile helps the shot-volume stats most (attempts, free throws). Where a player
+shoots and how he creates his shots says how many shots and trips to the line he gets, beyond his recent
+averages. Five stats were better again on the season the decision didn't use; tracking managed that for one.
+Like tracking, it doesn't help Points: knowing how a player scores doesn't predict how much.
+
 ---
 
 ## 5. What would actually move the needle next
