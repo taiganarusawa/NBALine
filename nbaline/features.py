@@ -761,9 +761,10 @@ WITH_SHOTS = {"XFGA", "X3PA", "X2PA", "XFTA", "XFTM", "PRA", "STL", "BLK", "BS",
 # rebounds. Blks+Stls just missed on the deciding seasons and was better on both later ones. No difference to
 # Points and 17 others; Pts+Asts was slightly worse.
 WITH_HUSTLE = {"STL", "BLK", "BS", "XOREB", "XDUNK", "XFTA"}
-# Coming back from an absence helped the 4 scoring combos on 2023-24 and 2024-25 and none got worse on 2025-26
-# (E14, TRAINING.md 4k); Points has it in its recipe. The other 20 stats haven't been tested with it yet.
-WITH_RETURN = {"PRA", "PR", "PA", "FS"}
+# Coming back from an absence helped these on 2023-24 and 2024-25 and none got worse on 2025-26 (E14, TRAINING.md
+# 4k): the 4 scoring combos most, then rebounds, field goals and blocks. Points has it in its recipe. It made no
+# clear difference to the other 16 stats (none got worse).
+WITH_RETURN = {"PRA", "PR", "PA", "FS", "REB", "XFGM", "XFGA", "BS", "BLK"}
 
 
 def stat_feature_list(key: str) -> list[str]:

@@ -689,8 +689,24 @@ first clear gain for Points since then.
 Saved as `experiments/stat_ab_return_tune.csv` and `_2025.csv`.
 
 **Decision:** Points (`recipes.points_recipe`, now 57 inputs) and the 4 combos (`features.WITH_RETURN`) use
-them; all 5 passed the rule. The old models are in `models/before_return`. The other 20 stats haven't been
-tested with them yet.
+them; all 5 passed the rule. The old models are in `models/before_return`.
+
+**The other 21 stats**, tested the same way afterwards (`experiments/stat_ab_return_others_*.csv`):
+
+| Stat | 2023-25 | 2025-26 check | 2026-27 so far |
+|---|---|---|---|
+| Rebounds | 0.2357 → 0.2355, **better** | 0.2358 → 0.2355, **better** | no clear difference (−0.0004) |
+| FG Made | 0.2354 → 0.2350, **better** | no clear difference (0.0000) | no clear difference (0.0000) |
+| FG Attempted | 0.2316 → 0.2313, **better** | no clear difference (−0.0001) | no clear difference (−0.0001) |
+| Blks+Stls | 0.2309 → 0.2306, **better** | no clear difference (−0.0001) | no clear difference (+0.0001) |
+| Blocked Shots | 0.1981 → 0.1979, **better** | no clear difference (−0.0001) | no clear difference (0.0000) |
+| Defensive Rebounds, Personal Fouls | no clear difference | **better** (−0.0003 each) | no clear difference |
+| 14 others | no clear difference | no clear difference | |
+
+None of the 21 got worse in either period, and almost all leaned slightly better. The gains are smaller than
+for the scoring stats (1-4% of each model's edge over his recent average), which fits: points depend most
+directly on minutes. The 5 that passed the rule use them too (old models in `models/before_return_more`);
+Defensive Rebounds and Personal Fouls were better on 2025-26 only, so they go without.
 
 **Why this one worked:** tracking, shots and hustle describe how a player scores, which his box scores
 already show. These tell the model how far he still is from his normal minutes after an absence, which
