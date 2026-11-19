@@ -738,6 +738,45 @@ actually sat, as for the other absence inputs.
 ratings, home, back-to-backs, absences) plus `BLOWOUT_L5` and close-game minutes; a straight-line summary of
 them adds nothing a tree model can't find itself. The inputs are still built, so the test can be rerun.
 
+## 4m. Tonight's defense vs. where he shoots (`E16_opp_shots`, November 2026)
+
+The generic "what the opponent allows" inputs made Points worse (4c). This version is specific to each player.
+
+- **The defense:** what it gave up over its last 15 games, from the shot charts, in three zone groups: at the
+  rim; the rest of the paint and midrange; threes. That's the share of its opponents' shots in each, and the
+  points per shot they scored there, against the league's over the year before. As of its previous game.
+- **Matched to him:** whether this defense gives up his kind of shots (weighted by his own rim/mid/three mix
+  over his last 10 games), how many points per shot it allows on them, and that times his shot attempts.
+
+**5 inputs** (`features.OPP_SHOTS`). Checked by hand (Grayson Allen at Dallas, Nov 2025), and the app builds
+the same values as training. Boston, Sacramento and Utah allowed the fewest rim shots in 2025-26; Washington,
+Philadelphia and Brooklyn the most.
+
+Tested on Points, the 4 scoring combos and the 6 shooting stats.
+
+**Points:** no clear difference. XGBoost on 2022-23 to 2024-25: −0.0011 [−0.0028, +0.0007] (vs.
+`E14_return`). Real model on 2025-26 and 2026-27: −0.0018 [−0.0044, +0.0006], better on 2025-26 and worse on
+2026-27.
+
+| Stat | 2023-25 | 2025-26 check | 2026-27 so far |
+|---|---|---|---|
+| 3-PT Attempted | 0.2205 → 0.2201, **better** | 0.2205 → 0.2200, **better** | no clear difference (0.0000) |
+| 3-PT Made | 0.2114 → 0.2112, **better** | 0.2133 → 0.2129, **better** | no clear difference (−0.0002) |
+| FG Attempted | 0.2313 → 0.2311, **better** | no clear difference (−0.0002) | no clear difference (−0.0001) |
+| Two Pointers Attempted | 0.2336 → 0.2333, **better** | no clear difference (−0.0002) | no clear difference (+0.0005) |
+| Two Pointers Made, FG Made | no clear difference | **better** (−0.0003, −0.0002) | no clear difference (+0.0006, +0.0001) |
+| PRA, P+R, P+A, Fantasy Score | no clear difference | no clear difference | |
+
+Saved as `experiments/stat_ab_opp_shots_tune.csv`, `_2025.csv` and `_2026.csv`.
+
+**Decision:** 3-PT Attempted, 3-PT Made and FG Attempted use them (`features.WITH_OPP_SHOTS`; old models in
+`models/before_opp_shots`): better or no different in every period. Two Pointers Attempted also passed the rule
+but leaned worse on 2026-27 and comes out about even, so it goes without. 3-PT Made had gained from no input
+before this one.
+
+**What it shows:** a defense's shot profile says how many threes and shots a player will take against it,
+but not how many points he'll score: the same lesson as tracking, shots and hustle for Points.
+
 **Why this one worked:** tracking, shots and hustle describe how a player scores, which his box scores
 already show. These tell the model how far he still is from his normal minutes after an absence, which
 it couldn't see.

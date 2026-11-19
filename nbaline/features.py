@@ -80,6 +80,16 @@ HUSTLE_PER_MIN = {"DEFLECTIONS": "DEFLECTIONS", "CONTESTED_2PT": "CONTESTED_SHOT
                   "LOOSE_BALLS": "LOOSE_BALLS_RECOVERED", "BOX_OUTS": "BOX_OUTS"}
 HUSTLE = [f"{k}_REL_L10" for k in HUSTLE_PER_MIN]
 BOX_OUTS_FROM = 2022    # the first season box outs were logged the way they are now
+# Tonight's defense vs. where he shoots (E16). From the shot charts: what each defense gave up over its last
+# OPP_SHOT_GAMES games in three zone groups (at the rim; the rest of the paint and midrange; threes), against the
+# league's over the year before. Then matched to his own mix of shots: whether this defense gives up his kind of
+# shots, how many points per shot it allows on them, and that times his shot attempts. The generic "what the
+# opponent allows" inputs made Points worse (TRAINING.md 4c); this one is specific to each player. Used by the
+# stats in WITH_OPP_SHOTS.
+ZONE_GROUPS = {"RIM": ["RIM"], "MID": ["PAINT", "MID"], "THREE": ["C3", "AB3"]}
+OPP_SHOTS = ["OPP_RIM_SHARE_VS_LG", "OPP_THREE_SHARE_VS_LG", "OPP_VOLUME_FOR_HIS_SHOTS", "OPP_PPS_FOR_HIS_SHOTS",
+             "MATCHUP_PTS_EDGE"]
+OPP_SHOT_GAMES = 15
 # Coming back from an absence (box scores): minutes run 12-24% short in the first game back and catch up
 # over about 3 games, more slowly after a longer absence (TRAINING.md 4j). GAMES_MISSED only flags the first
 # game back, so these follow the whole return: how many games since, how long he was out, his minutes before
@@ -188,7 +198,12 @@ LABELS.update({"AST_PER_POT_REL_L20": "Assists from his potential assists, vs. t
                "EXP_MARGIN": "Expected final margin for his team (ratings, home, rest, absences)",
                "BLOWOUT_CHANCE": "Chance the game ends 15+ points either way",
                "BLOWOUT_MIN_GAP_L40": "His minutes in blowouts minus in other games (last 40)",
-               "EXP_BLOWOUT_MIN_LOSS": "Minutes he can expect to lose to a blowout tonight"})
+               "EXP_BLOWOUT_MIN_LOSS": "Minutes he can expect to lose to a blowout tonight",
+               "OPP_RIM_SHARE_VS_LG": "Opponent: share of shots it allows at the rim, vs. the league (last 15)",
+               "OPP_THREE_SHARE_VS_LG": "Opponent: share of shots it allows from three, vs. the league (last 15)",
+               "OPP_VOLUME_FOR_HIS_SHOTS": "Opponent: how much it gives up his kind of shots (1 = league)",
+               "OPP_PPS_FOR_HIS_SHOTS": "Opponent: points per shot it allows on his kind of shots, vs. the league",
+               "MATCHUP_PTS_EDGE": "Extra points his usual shots would score against this defense"})
 
 
 def load_raw():
@@ -399,6 +414,66 @@ def league_zone_points() -> pd.DataFrame:
     before = day.rolling(LEAGUE_WINDOW).sum().shift(1)   # shift(1): up to the previous game day
     return pd.DataFrame({z: before[f"SHOT_{z}_FGM"] / before[f"SHOT_{z}_FGA"] * (3 if z in shots.THREES else 2)
                          for z in shots.ZONES})
+
+
+def defense_zone_profile() -> pd.DataFrame:
+    """For each team after each of its games: the share of its opponents' shots in each ZONE_GROUPS zone and
+    the points per shot they scored there, over its last OPP_SHOT_GAMES games (this one included), and the
+    league's share and points per shot over the year before that day. From the whole shot-chart and box-score
+    files, so training and the app get the same values. Columns: TEAM_ID, GAME_DATE, then per zone
+    SHARE_<z>, PPS_<z>, LG_SHARE_<z>, LG_PPS_<z>."""
+    return _defense_zone_profile(SHOTS_FILE.stat().st_mtime if SHOTS_FILE.exists() else 0,
+                                 PLAYER_LOGS.stat().st_mtime)
+
+
+@functools.lru_cache(maxsize=1)
+def _defense_zone_profile(*file_times: float) -> pd.DataFrame:
+    logs = pd.read_csv(PLAYER_LOGS, usecols=["GAME_ID", "PLAYER_ID", "TEAM_ID"], dtype={"GAME_ID": str})
+    s = shots.load().merge(logs, on=["GAME_ID", "PLAYER_ID"])
+    cols = {}
+    for z, zones in ZONE_GROUPS.items():
+        cols[f"FGA_{z}"] = sum(s[f"SHOT_{x}_FGA"] for x in zones)
+        cols[f"PTS_{z}"] = sum(s[f"SHOT_{x}_FGM"] * (3 if x in shots.THREES else 2) for x in zones)
+    offense = pd.concat([s[["GAME_ID", "GAME_DATE", "TEAM_ID"]], pd.DataFrame(cols)], axis=1)         .groupby(["GAME_ID", "GAME_DATE", "TEAM_ID"], as_index=False).sum()
+    # each game's two teams: the defense is the other one
+    pair = offense[["GAME_ID", "TEAM_ID"]].merge(offense[["GAME_ID", "TEAM_ID"]], on="GAME_ID", suffixes=("", "_DEF"))
+    pair = pair[pair["TEAM_ID"] != pair["TEAM_ID_DEF"]]
+    d = offense.merge(pair, on=["GAME_ID", "TEAM_ID"]).drop(columns="TEAM_ID")         .rename(columns={"TEAM_ID_DEF": "TEAM_ID"})
+    d["GAME_DATE"] = pd.to_datetime(d["GAME_DATE"])
+    d = d.sort_values(["TEAM_ID", "GAME_DATE"]).reset_index(drop=True)
+    counts = [c for c in d.columns if c.startswith(("FGA_", "PTS_"))]
+    last = d.groupby("TEAM_ID")[counts].rolling(OPP_SHOT_GAMES, min_periods=5).sum().droplevel(0)
+    day = d.groupby("GAME_DATE")[counts].sum()
+    lg = day.rolling(LEAGUE_WINDOW).sum().shift(1).reindex(d["GAME_DATE"].to_numpy()).set_axis(d.index)
+    out = d[["TEAM_ID", "GAME_DATE"]].copy()
+    for src, prefix in ((last, ""), (lg, "LG_")):
+        total = sum(src[f"FGA_{z}"] for z in ZONE_GROUPS)
+        for z in ZONE_GROUPS:
+            out[f"{prefix}SHARE_{z}"] = src[f"FGA_{z}"] / total
+            out[f"{prefix}PPS_{z}"] = src[f"PTS_{z}"] / src[f"FGA_{z}"]
+    return out
+
+
+def opponent_shot_features(p: pd.DataFrame) -> pd.DataFrame:
+    """OPP_SHOTS inputs: tonight's defense as of its previous game (defense_zone_profile), matched to his
+    shots over his last 10 games (the shot-profile inputs, so shot_features must have run)."""
+    prof = defense_zone_profile().rename(columns={"TEAM_ID": "OPP_ID"})
+    left = p[["OPP_ID", "GAME_DATE"]].reset_index().sort_values("GAME_DATE")
+    left = left[left["OPP_ID"].notna()].astype({"OPP_ID": prof["OPP_ID"].dtype})
+    m = pd.merge_asof(left, prof.sort_values("GAME_DATE"), on="GAME_DATE", by="OPP_ID",
+                      allow_exact_matches=False).set_index("index").reindex(p.index)   # strictly before tonight
+    his = {"RIM": p["RIM_FGA_PM_L10"], "MID": p["PAINT_FGA_PM_L10"] + p["MID_FGA_PM_L10"],
+           "THREE": p["C3_FGA_PM_L10"] + p["AB3_FGA_PM_L10"]}
+    total = sum(his.values()).replace(0, np.nan)
+    share = {z: his[z] / total for z in ZONE_GROUPS}
+    new = pd.DataFrame({
+        "OPP_RIM_SHARE_VS_LG": m["SHARE_RIM"] / m["LG_SHARE_RIM"],
+        "OPP_THREE_SHARE_VS_LG": m["SHARE_THREE"] / m["LG_SHARE_THREE"],
+        "OPP_VOLUME_FOR_HIS_SHOTS": sum(share[z] * m[f"SHARE_{z}"] / m[f"LG_SHARE_{z}"] for z in ZONE_GROUPS),
+        "OPP_PPS_FOR_HIS_SHOTS": sum(share[z] * (m[f"PPS_{z}"] - m[f"LG_PPS_{z}"]) for z in ZONE_GROUPS),
+    }, index=p.index)
+    new["MATCHUP_PTS_EDGE"] = new["OPP_PPS_FOR_HIS_SHOTS"] * p["FGA_L10"]
+    return pd.concat([p, new], axis=1)
 
 
 def shot_features(p: pd.DataFrame) -> pd.DataFrame:
@@ -674,6 +749,7 @@ def build_features(p: pd.DataFrame, t: pd.DataFrame, overrides: dict | None = No
     p["NET_DIFF"] = (p["OWN_NET_RTG_L10"] - p["OPP_NET_RTG_L10"]).abs()  # big gap = blowout risk either way
     pace = (p["OWN_PACE_L10"] + p["OPP_PACE_L10"]) / 2
     p["EXP_TEAM_PTS"] = (p["OWN_OFF_RTG_L10"] + p["OPP_DEF_RTG_L10"]) / 2 * pace / 100
+    p = opponent_shot_features(p)
 
     # games missed right before this one (returning from injury => minutes limits)
     p = p.sort_values([P, "GAME_DATE"]).reset_index(drop=True)
@@ -822,6 +898,10 @@ WITH_HUSTLE = {"STL", "BLK", "BS", "XOREB", "XDUNK", "XFTA"}
 # 4k): the 4 scoring combos most, then rebounds, field goals and blocks. Points has it in its recipe. It made no
 # clear difference to the other 16 stats (none got worse).
 WITH_RETURN = {"PRA", "PR", "PA", "FS", "REB", "XFGM", "XFGA", "BS", "BLK"}
+# Tonight's defense vs. where he shoots helped these on 2023-24 and 2024-25, and they were better or no different
+# on 2025-26 and 2026-27 so far (E16, TRAINING.md 4m): how many threes and shots he takes. Two Pointers Attempted
+# also passed, but leaned worse on 2026-27, so it goes without. No difference to Points or the scoring combos.
+WITH_OPP_SHOTS = {"X3PA", "FG3M", "XFGA"}
 
 
 def stat_feature_list(key: str) -> list[str]:
@@ -830,7 +910,8 @@ def stat_feature_list(key: str) -> list[str]:
         others += ["PTS_L10", "PTS_SEASON", "PTS_STD_L10"]
     return ([f"{key}_{h}" for h in HIST] + others + SHARED + ([] if key in NO_LINEUPS else LINEUPS)
             + (TRACKING_REL if key in WITH_TRACKING else []) + (SHOTS if key in WITH_SHOTS else [])
-            + (HUSTLE if key in WITH_HUSTLE else []) + (RETURN if key in WITH_RETURN else []))
+            + (HUSTLE if key in WITH_HUSTLE else []) + (RETURN if key in WITH_RETURN else [])
+            + (OPP_SHOTS if key in WITH_OPP_SHOTS else []))
 
 
 def history_keys(keys) -> list[str]:

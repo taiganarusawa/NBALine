@@ -135,6 +135,13 @@ reg(Config("E15_margin", BEST_FEATS + F.LINEUPS + F.RETURN + F.MARGIN, **B1, par
 reg(replace(points_recipe(), name="FINAL_M", features=points_recipe().features + F.MARGIN,
             note="FINAL + expected margin"))
 
+# ---- E16: tonight's defense vs. where he shoots (shot charts): whether it gives up his kind of shots and how
+# many points per shot it allows on them. Compared against E14_return; FINAL_O is the final model with them.
+reg(Config("E16_opp_shots", BEST_FEATS + F.LINEUPS + F.RETURN + F.OPP_SHOTS, **B1, params=TUNED,
+           note="+ opponent shot profile x his zones"))
+reg(replace(points_recipe(), name="FINAL_O", features=points_recipe().features + F.OPP_SHOTS,
+            note="FINAL + opponent shot profile x his zones"))
+
 
 def run(cfg: Config, folds, df) -> pd.DataFrame:
     rows, per_row = [], {}

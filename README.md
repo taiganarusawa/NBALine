@@ -109,6 +109,8 @@ Every input for a game is built only from games played before it.
   better, mostly shot and free-throw attempts.
 - Hustle stats (deflections, contested shots, box outs) for the 6 stats where they tested better, mostly
   steals and blocks.
+- Tonight's defense vs. where he shoots (does it give up his kind of shots?), for 3-PT attempts and makes
+  and FG attempts.
 
 ### Labels on a line
 

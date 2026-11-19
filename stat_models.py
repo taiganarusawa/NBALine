@@ -238,7 +238,7 @@ def night_bootstrap(diff: np.ndarray, nights: np.ndarray, draws: int = 1000) -> 
 # tracking inputs for the same ones measured against the league under the same counting (TRAINING.md 4h).
 AB_TESTS = {"lineups": ([], F.LINEUPS), "tracking": ([], F.TRACKING), "shots": ([], F.SHOTS),
             "tracking_rel": (F.TRACKING, F.TRACKING_REL), "hustle": ([], F.HUSTLE), "return": ([], F.RETURN),
-            "margin": ([], F.MARGIN)}
+            "margin": ([], F.MARGIN), "opp_shots": ([], F.OPP_SHOTS)}
 
 
 def _ab_fold(key: str, S: int, out: list, added: list, changed: bool, dist: str) -> dict:
