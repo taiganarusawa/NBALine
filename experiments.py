@@ -120,6 +120,14 @@ reg(Config("E13_hustle", BEST_FEATS + F.LINEUPS + F.HUSTLE, **B1, params=TUNED, 
 reg(replace(points_recipe(), name="FINAL_H", features=points_recipe().features + F.HUSTLE,
             note="FINAL + hustle stats"))
 
+# ---- E14: coming back from an absence (box scores): games since the return, how long he was out, his
+# minutes before it and since, his last game's minutes. Compared against E10_lineups on the tuning folds;
+# FINAL_R is the final model with them.
+reg(Config("E14_return", BEST_FEATS + F.LINEUPS + F.RETURN, **B1, params=TUNED, note="+ return from absence"))
+# (it won: FINAL above now includes them; FINAL_NOR is the final model as it was before)
+reg(replace(points_recipe(), name="FINAL_NOR", features=[f for f in points_recipe().features if f not in F.RETURN],
+            note="FINAL without return from absence"))
+
 
 def run(cfg: Config, folds, df) -> pd.DataFrame:
     rows, per_row = [], {}

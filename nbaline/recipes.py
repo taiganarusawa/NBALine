@@ -26,9 +26,11 @@ POISSON_HETERO = dict(objective="count:poisson", rounds=None, dist="hetero")
 
 def points_recipe() -> Config:
     """The final points model: 70% XGBoost + 30% neural net, with a volatility model. Since November 2026
-    it also sees the starting lineups (E10: a real gain on every unseen season, see TRAINING.md 4e)."""
-    return Config("FINAL", POINTS_FEATURES + F.LINEUPS, **POISSON_HETERO, model="ens", ens_w=0.3, params=TUNED,
-                  note="v2 features (no matchup) + starting lineups + Poisson XGBoost 70% / neural net 30% + volatility model")
+    it also sees the starting lineups (E10: a real gain on every unseen season, see TRAINING.md 4e) and how
+    far he is into coming back from an absence (E14, TRAINING.md 4k)."""
+    return Config("FINAL", POINTS_FEATURES + F.LINEUPS + F.RETURN, **POISSON_HETERO, model="ens", ens_w=0.3,
+                  params=TUNED, note="v2 features (no matchup) + starting lineups + return from absence + "
+                                     "Poisson XGBoost 70% / neural net 30% + volatility model")
 
 
 def stat_recipe(key: str, dist: str = "both") -> Config:

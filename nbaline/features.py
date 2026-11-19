@@ -79,6 +79,14 @@ HUSTLE_PER_MIN = {"DEFLECTIONS": "DEFLECTIONS", "CONTESTED_2PT": "CONTESTED_SHOT
                   "LOOSE_BALLS": "LOOSE_BALLS_RECOVERED", "BOX_OUTS": "BOX_OUTS"}
 HUSTLE = [f"{k}_REL_L10" for k in HUSTLE_PER_MIN]
 BOX_OUTS_FROM = 2022    # the first season box outs were logged the way they are now
+# Coming back from an absence (box scores): minutes run 12-24% short in the first game back and catch up
+# over about 3 games, more slowly after a longer absence (TRAINING.md 4j). GAMES_MISSED only flags the first
+# game back, so these follow the whole return: how many games since, how long he was out, his minutes before
+# it and since, and his last game's minutes. Tested on its own (E14): used by Points (recipes.points_recipe)
+# and the stats in WITH_RETURN.
+RETURN = ["GAMES_SINCE_RETURN", "ABSENCE_GAMES", "PRE_ABSENCE_MIN", "MIN_SINCE_RETURN", "RETURN_RECOVERY", "MIN_L1"]
+RETURN_AFTER = 2        # missing this many team games or more in a row starts a return
+RETURN_WINDOW = 10      # the RETURN inputs follow the first 10 games back; after that he counts as settled
 FEATURES = V1  # overwritten by the trained model's saved feature list at prediction time
 
 LABELS = {
@@ -155,7 +163,13 @@ LABELS.update({"AST_PER_POT_REL_L20": "Assists from his potential assists, vs. t
                "CONTESTED_3PT_REL_L10": "Contested 3-point shots per minute, vs. the league (last 10)",
                "SCREEN_AST_REL_L10": "Screen assists per minute, vs. the league (last 10)",
                "LOOSE_BALLS_REL_L10": "Loose balls recovered per minute, vs. the league (last 10)",
-               "BOX_OUTS_REL_L10": "Box outs per minute, vs. the league (last 10, from 2022-23)"})
+               "BOX_OUTS_REL_L10": "Box outs per minute, vs. the league (last 10, from 2022-23)",
+               "GAMES_SINCE_RETURN": "Games since returning from an absence (1 = first game back)",
+               "ABSENCE_GAMES": "Team games he missed in that absence",
+               "PRE_ABSENCE_MIN": "His minutes before the absence (last 10)",
+               "MIN_SINCE_RETURN": "His minutes since returning",
+               "RETURN_RECOVERY": "Minutes since returning, as a share of before the absence",
+               "MIN_L1": "Minutes, last game"})
 
 
 def load_raw():
@@ -280,6 +294,35 @@ def hustle_features(p: pd.DataFrame) -> pd.DataFrame:
     minutes = {col: s("_HBOX_MIN" if col == "BOX_OUTS" else "_HMIN", 10).clip(lower=1) for col in HUSTLE_PER_MIN.values()}
     new = {f"{name}_REL_L10": s(f"_HREL_{col}", 10) / minutes[col] for name, col in HUSTLE_PER_MIN.items()}
     return pd.concat([p.drop(columns=list(temp)), pd.DataFrame(new, index=p.index)], axis=1).copy()
+
+
+def return_features(p: pd.DataFrame, same_team: pd.Series) -> pd.DataFrame:
+    """RETURN inputs, as of before each game (known then: the schedule says how many games he missed).
+    An absence is RETURN_AFTER+ team games missed in a row; a player's first game of a season counts the
+    team's games before it, so a season-opening injury is a return too. A trade isn't an absence. p: sorted
+    by player and date, with GAMES_MISSED's same_team (his previous game was this season, for this team)."""
+    P = "PLAYER_ID"
+    g = p.groupby(P)
+    first_of_season = g["SEASON"].shift(1) != p["SEASON"]
+    absence = (p["TEAM_GAME_NUM"] - g["TEAM_GAME_NUM"].shift(1) - 1).where(same_team)
+    absence = absence.fillna(p["TEAM_GAME_NUM"].where(first_of_season)).clip(upper=82)
+    returned = (absence >= RETURN_AFTER) & p["MIN_L10"].notna()     # a debut isn't a return
+    stint = returned.astype(int).groupby(p[P]).cumsum()             # 0 until his first return in the data
+    key = [p[P], stint]
+    n = p.groupby(key).cumcount() + 1                               # 1 = the game he came back in
+    recent = (stint > 0) & (n <= RETURN_WINDOW)
+    before = p["MIN"].groupby(key).shift(1)                         # his minutes since, before tonight
+    since = before.groupby(key).cumsum() / before.notna().groupby(key).cumsum().replace(0, np.nan)
+    pre = p["MIN_L10"].where(returned).groupby(key).transform("first")  # last 10 games before he went out
+    new = pd.DataFrame({
+        "GAMES_SINCE_RETURN": n.where(recent, RETURN_WINDOW + 1),
+        "ABSENCE_GAMES": absence.where(returned).groupby(key).transform("first").where(recent, 0),
+        "PRE_ABSENCE_MIN": pre.where(recent),
+        "MIN_SINCE_RETURN": since.where(recent),
+        "RETURN_RECOVERY": (since / pre.clip(lower=1)).where(recent),
+        "MIN_L1": lag(p, P, "MIN", 1),
+    }, index=p.index)
+    return pd.concat([p, new], axis=1)
 
 
 def add_shots(p: pd.DataFrame) -> pd.DataFrame:
@@ -584,6 +627,7 @@ def build_features(p: pd.DataFrame, t: pd.DataFrame, overrides: dict | None = No
     g = p.groupby(P)
     same = (g["TEAM_ID"].shift(1) == p["TEAM_ID"]) & (g["SEASON"].shift(1) == p["SEASON"])
     p["GAMES_MISSED"] = (p["TEAM_GAME_NUM"] - g["TEAM_GAME_NUM"].shift(1) - 1).where(same).clip(0, 20)
+    p = return_features(p, same)
 
     # ---- minutes in close games: blowouts (benched 4th quarter) shouldn't drag a starter's minutes down
     p["_MIN_CLOSE"] = p["MIN"].where(p["MARGIN"] <= 10)
@@ -717,6 +761,9 @@ WITH_SHOTS = {"XFGA", "X3PA", "X2PA", "XFTA", "XFTM", "PRA", "STL", "BLK", "BS",
 # rebounds. Blks+Stls just missed on the deciding seasons and was better on both later ones. No difference to
 # Points and 17 others; Pts+Asts was slightly worse.
 WITH_HUSTLE = {"STL", "BLK", "BS", "XOREB", "XDUNK", "XFTA"}
+# Coming back from an absence helped the 4 scoring combos on 2023-24 and 2024-25 and none got worse on 2025-26
+# (E14, TRAINING.md 4k); Points has it in its recipe. The other 20 stats haven't been tested with it yet.
+WITH_RETURN = {"PRA", "PR", "PA", "FS"}
 
 
 def stat_feature_list(key: str) -> list[str]:
@@ -725,7 +772,7 @@ def stat_feature_list(key: str) -> list[str]:
         others += ["PTS_L10", "PTS_SEASON", "PTS_STD_L10"]
     return ([f"{key}_{h}" for h in HIST] + others + SHARED + ([] if key in NO_LINEUPS else LINEUPS)
             + (TRACKING_REL if key in WITH_TRACKING else []) + (SHOTS if key in WITH_SHOTS else [])
-            + (HUSTLE if key in WITH_HUSTLE else []))
+            + (HUSTLE if key in WITH_HUSTLE else []) + (RETURN if key in WITH_RETURN else []))
 
 
 def history_keys(keys) -> list[str]:

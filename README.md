@@ -85,7 +85,7 @@ This is a real example: Warriors vs. Pelicans on Nov 9, 2026, using that day's l
 - **Points** has its own model:
   - XGBoost (70%) blended with a neural net (30%).
   - It also learns how much each player's scoring swings from game to game.
-  - 51 inputs, trained on ten seasons (about 181,000 player-games).
+  - 57 inputs, trained on ten seasons (about 181,000 player-games).
 - **25 other stats** each get their own XGBoost model:
   - The main stats and combos: rebounds, assists, PRA, P+R, P+A, R+A, fantasy score.
   - Threes and shooting: 3-PT made and attempted, FG made and attempted, free throws made and
@@ -99,7 +99,7 @@ This is a real example: Warriors vs. Pelicans on Nov 9, 2026, using that day's l
 Every input for a game is built only from games played before it.
 
 - His recent and season averages, his per-minute rates and his shooting efficiency.
-- His minutes, rest days, back-to-backs, and games missed before this one.
+- His minutes, rest days, back-to-backs, and how far he is into coming back from an absence.
 - Both teams' pace and ratings, and how likely a blowout is.
 - Who's out on both teams, from the official injury report.
 - Tonight's starting lineup, once it's posted.

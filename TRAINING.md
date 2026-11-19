@@ -600,6 +600,102 @@ Like tracking and the shot profile, hustle stats don't help Points or the other 
 libraries) ran the 16 GB PC out of memory with other apps open. `stat_models.py` now trains 3 at a time
 (`--jobs` changes it); how many run at once doesn't change the models.
 
+## 4j. Where the Points misses come from (November 2026)
+
+Tracking, the shot profile and hustle stats made no difference to Points. Before building a minutes model,
+we checked whether the model's losing picks were really about minutes, and whether short minutes could
+have been seen before the game. It used 8,265 graded standard PrizePicks lines from 9 nights (Nov 10-18,
+2026), each player and stat once a day as the Results tab counts them. 99% matched to the player's minutes
+before and after the game. "Expected minutes" is his recent-weighted average (`MIN_EWM`).
+
+**After the game, minutes clearly matter.** The model's More picks on scoring stats:
+
+| His minutes vs. his average | Points | PRA, P+R, P+A, Fantasy |
+|---|---|---|
+| 8+ fewer | 15% right | 11% |
+| 4-8 fewer | 40% | 28% |
+| about the same | 50% | 45% |
+| 4+ more | 73% | 77% |
+
+Losing Points More picks averaged 2.9 minutes below his average, winning ones 1.4 above.
+
+**But most of a miss is scoring per minute.** Splitting each result's gap from the projection into minutes
+(played more or less than his average, at the projected rate) and production (scored more or less per
+minute than projected):
+
+| Scoring More picks | Result - projection | From minutes | From scoring per minute |
+|---|---|---|---|
+| Lost (446) | -6.9 | -1.7 | -5.3 |
+| Won (406) | +4.5 | +1.6 | +2.9 |
+
+**And the short minutes mostly weren't visible before the game.** A minutes model on the inputs the models
+already had, trained on 2018-19 to 2024-25, explains 20% of the gap between a player's minutes and his
+average on 2025-26 (the typical miss shrinks from 6.3 to 5.6 minutes). Before the game, it expected only
+0.3 fewer minutes for losing Points More picks than for winning ones; after the game the gap was 4.3. Most
+of the shortfall came from what happened during the game: fouls, blowouts, injuries.
+
+**Return from an absence is the exception.** Over about 12,000 returns since 2017-18 (2+ games missed):
+
+| Game back | Missed 2-4 | Missed 5-10 | Missed 11+ |
+|---|---|---|---|
+| 1st | 88% of his minutes before (-3.0 vs. his average) | 81% (-4.4) | 76% (-5.7) |
+| 2nd | 96% (-1.0) | 92% (-1.4) | 85% (-2.9) |
+| 3rd | 99% | 97% | 93% (-1.0) |
+
+The dip is predictable, and the model only saw it through `GAMES_MISSED`, which flags the first game back
+only and misses an injury that starts the season. On PrizePicks, scoring More picks in a player's first 3
+games back hit 60% (65 picks), so PrizePicks seems to price the return already.
+
+**Decision:** test return-from-absence inputs (4k). A full minutes model has a low ceiling: the minutes that
+can be predicted before a game barely separate winning picks from losing ones.
+
+## 4k. Return from an absence (`E14_return`, November 2026)
+
+**6 inputs** (`features.RETURN`, built from the box scores):
+
+- games since he came back (1 = the first game back), for the first 10 games after missing 2+ in a row
+- how many team games he missed
+- his minutes before the absence (last 10 games)
+- his minutes since coming back, and that as a share of before
+- his last game's minutes
+
+A player's first game of a season counts the team's games before it, so an injury that starts the season
+is a return too (Jayson Tatum came back on Mar 6, 2026 after 62 games; `GAMES_MISSED` was blank). A trade
+isn't an absence. The app builds exactly the same values as training, except for a player whose first
+game is for a new team (the known "team from his last game" limit).
+
+Tested on Points and the 4 scoring combos only: the stats this round is about.
+
+**Points:**
+
+| Test | CRPS | Change, 95% interval |
+|---|---|---|
+| XGBoost, 2022-23 to 2024-25 (vs. `E10_lineups`) | 3.4948 → 3.4910 | −0.0038 [−0.0057, −0.0019], **better** |
+| Real model, 2025-26 and 2026-27 so far | 3.4520 → 3.4492 | −0.0028 [−0.0056, +0.0000], no clear difference |
+
+On the check, both seasons improved (2025-26 −0.0028, 2026-27 −0.0025), the range only just reached 0,
+and calibration error fell from 0.76% to 0.62%. About a seventh of what starting lineups gave, and the
+first clear gain for Points since then.
+
+**Scoring combos** (`python stat_models.py --ab return`):
+
+| Stat | 2023-25 | 2025-26 check |
+|---|---|---|
+| Pts+Rebs+Asts | 0.2354 → 0.2348, **better** | no clear difference (−0.0003) |
+| Fantasy Score | 0.2366 → 0.2361, **better** | 0.2347 → 0.2343, **better** |
+| Pts+Rebs | 0.2370 → 0.2366, **better** | no clear difference (−0.0002) |
+| Pts+Asts | 0.2366 → 0.2363, **better** | no clear difference (0.0000) |
+
+Saved as `experiments/stat_ab_return_tune.csv` and `_2025.csv`.
+
+**Decision:** Points (`recipes.points_recipe`, now 57 inputs) and the 4 combos (`features.WITH_RETURN`) use
+them; all 5 passed the rule. The old models are in `models/before_return`. The other 20 stats haven't been
+tested with them yet.
+
+**Why this one worked:** tracking, shots and hustle describe how a player scores, which his box scores
+already show. These tell the model how far he still is from his normal minutes after an absence, which
+it couldn't see.
+
 ---
 
 ## 5. What would actually move the needle next
