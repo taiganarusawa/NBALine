@@ -384,6 +384,9 @@ Pick a day and see the lines that hit even though the model gave them little cha
 - NBA.com has none for 16 of 1,469 game days (mostly the 2020 restart).
 - Used only by the 6 stats where it tested better: Turnovers, Rebounds, Offensive Rebounds,
   Rebs+Asts, Two Pointers Made and Free Throws Attempted (`TRAINING.md` 4f).
+- NBA.com has changed how it counts several of these. From 2024-25, the same players show about 50% more
+  drives and 80% more time holding the ball. Rebound chances also ran 30% low from Nov 2025 to Mar 23, 2026.
+  So each game is measured against the league's rate that night: 1.0 means league average (`TRAINING.md` 4h).
 - If a day's download fails, the inputs use his other recent games.
 
 **Shot profile and dunks** (NBA.com's shot charts, `nbaline/shots.py`, 2017-18 on). Reliability: high.

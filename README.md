@@ -103,7 +103,8 @@ Every input for a game is built only from games played before it.
 - Both teams' pace and ratings, and how likely a blowout is.
 - Who's out on both teams, from the official injury report.
 - Tonight's starting lineup, once it's posted.
-- NBA.com player tracking (rebound chances, touches, drives) for the 6 stats where it tested better.
+- NBA.com player tracking (rebound chances, touches, drives) for the 6 stats where it tested better,
+  measured against the league each night because NBA.com has changed how it counts them.
 - His shot profile (shots at the rim, midrange, corner 3s, pull-ups) for the 10 stats where it tested
   better, mostly shot and free-throw attempts.
 
@@ -125,7 +126,7 @@ Every input for a game is built only from games played before it.
 | Schedule, tip-off times | Official NBA schedule | A typed opponent that doesn't match it is refused |
 | Who's out | Official NBA injury report (PDF) | Out and Doubtful count as out; Questionable is flagged |
 | Who's starting | NBA.com's daily starting lineups (2023-24 on) | "Expected" during the day, "Confirmed" about 30 min before tip-off |
-| Player tracking | NBA.com's camera-tracking stats (2017-18 on) | Potential assists, rebound chances, drives, touches |
+| Player tracking | NBA.com's camera-tracking stats (2017-18 on) | Potential assists, rebound chances, drives, touches. Counted differently from 2024-25, so measured against the league |
 | Dunks and shot profile | NBA.com's shot charts (2017-18 on) | Every shot's zone and type; box scores don't count dunks |
 | Live games | NBA.com's live box scores | Refreshed every 15 seconds while a game is on |
 | PrizePicks lines | **You paste them** | NBALine never scrapes PrizePicks |
@@ -177,7 +178,7 @@ nbaline/                 the library: everything the commands and the web app sh
   lineups.py             NBA.com's daily starting lineups
   tracking.py            NBA.com player tracking per game: potential assists, rebound chances, drives, touches
   shots.py               NBA.com shot charts per game: dunks, shots by zone, self-created jumpers
-  hustle.py              NBA.com hustle stats per game: deflections, box outs, contested shots (being checked)
+  hustle.py              NBA.com hustle stats per game: deflections, box outs, contested shots (not used yet)
   predictor.py           the prediction engine: {player, stat, line} -> calibrated over/under chance
   updater.py             the web app's one-click "Update data & model" job
   pickem/                PrizePicks

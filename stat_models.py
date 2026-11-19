@@ -5,6 +5,7 @@ Same method as the points model (double/triple-doubles predict a yes/no chance i
     python stat_models.py --evaluate     # walk-forward test of every stat not tested yet (~1 min per stat)
     python stat_models.py --train        # train the final models -> models/stat_<KEY>.pkl (4 at a time)
     python stat_models.py --ab lineups   # do extra inputs help? every stat with vs. without them
+    python stat_models.py --ab tracking_rel --only TOV,REB   # or one version of an input group vs. another
 
 How a stat is tested:
   * the 2023-24 and 2024-25 seasons choose its uncertainty method (volatility model vs. a count
@@ -162,10 +163,12 @@ def train(keys: list | None = None):
         else:
             todo.append((key, cfg, info))
     STATS_META.write_text(json.dumps(summary, indent=2))
-    del df   # each worker loads its own copy
+    rows = df[_columns([cfg for _, cfg, _ in todo], [key for key, _, _ in todo])]
+    del df
 
     if todo:
-        with ProcessPoolExecutor(min(TRAIN_AT_ONCE, len(todo)), initializer=_load_training_rows) as pool:
+        with ProcessPoolExecutor(min(TRAIN_AT_ONCE, len(todo)), initializer=_use_training_rows,
+                                 initargs=(rows,)) as pool:
             jobs = {pool.submit(_fit_and_save, key, cfg, inner): (key, info) for key, cfg, info in todo}
             for job in as_completed(jobs):
                 key, info = jobs[job]
@@ -177,24 +180,27 @@ def train(keys: list | None = None):
 
 
 def ab_test(group: str, folds: list[int], keys: list | None = None):
-    """Do extra inputs help the stat models? Each stat's final settings with and without a feature group
-    (EXTRA_GROUPS), trained on the seasons before each fold and scored on it: Brier and calibration error
+    """Do extra inputs help the stat models? Each stat's final settings before and after a change (AB_TESTS:
+    a feature group added, or swapped for another version of it), trained on the seasons before each fold
+    and scored on it: Brier and calibration error
     at the usual line, and MAE. A change counts as real when its 95% interval (resampling whole nights)
     leaves out zero. Saved to experiments/stat_ab_<group>.csv."""
-    extra = EXTRA_GROUPS[group]
+    out, added = AB_TESTS[group]
     ev = pd.read_csv(OUT / "stat_models.csv").set_index("key")
     keys = keys or [k for k in F.OTHER_STATS if k in ev.index]
-    jobs = [(key, S, with_extra) for key in keys for S in folds for with_extra in (False, True)]
-    F.load_features()   # rebuilds the saved inputs if they're stale, before the workers each read them
-    scored = {}   # (key, fold, with_extra) -> each test row's squared error and night
-    with ProcessPoolExecutor(TRAIN_AT_ONCE, initializer=_load_training_rows) as pool:
-        futures = {pool.submit(_ab_fold, key, S, extra, with_extra, ev.loc[key]["dist"]): (key, S, with_extra)
-                   for key, S, with_extra in jobs}
+    jobs = [(key, S, changed) for key in keys for S in folds for changed in (False, True)]
+    df = F.load_features()
+    rows = df[_columns([stat_recipe(key, ev.loc[key]["dist"]) for key in keys], keys, out + added)]
+    del df
+    scored = {}   # (key, fold, changed) -> each test row's squared error and night
+    with ProcessPoolExecutor(TRAIN_AT_ONCE, initializer=_use_training_rows, initargs=(rows,)) as pool:
+        futures = {pool.submit(_ab_fold, key, S, out, added, changed, ev.loc[key]["dist"]): (key, S, changed)
+                   for key, S, changed in jobs}
         for job in as_completed(futures):
-            key, S, with_extra = futures[job]
-            scored[(key, S, with_extra)] = job.result()
-            print(f"  {NAMES[key]:<22} {S} {'with' if with_extra else 'without'} {group}: "
-                  f"Brier {scored[(key, S, with_extra)]['brier']:.4f}", flush=True)
+            key, S, changed = futures[job]
+            scored[(key, S, changed)] = job.result()
+            print(f"  {NAMES[key]:<22} {S} {'after' if changed else 'before'} {group}: "
+                  f"Brier {scored[(key, S, changed)]['brier']:.4f}", flush=True)
     rows = []
     for key in keys:
         old = [scored[(key, S, False)] for S in folds]
@@ -226,18 +232,22 @@ def night_bootstrap(diff: np.ndarray, nights: np.ndarray, draws: int = 1000) -> 
     return float(lo), float(hi)
 
 
-EXTRA_GROUPS = {"lineups": F.LINEUPS, "tracking": F.TRACKING, "shots": F.SHOTS}
+# Input changes to test, as (inputs taken out, inputs put in). Most add a group; tracking_rel swaps the
+# tracking inputs for the same ones measured against the league under the same counting (TRAINING.md 4h).
+AB_TESTS = {"lineups": ([], F.LINEUPS), "tracking": ([], F.TRACKING), "shots": ([], F.SHOTS),
+            "tracking_rel": (F.TRACKING, F.TRACKING_REL)}
 
 
-def _ab_fold(key: str, S: int, extra: list, with_extra: bool, dist: str) -> dict:
-    """In a worker: one stat, one fold, with or without the extra inputs (whatever its recipe has)."""
+def _ab_fold(key: str, S: int, out: list, added: list, changed: bool, dist: str) -> dict:
+    """In a worker: one stat, one fold, before or after the change: its recipe with the inputs the change
+    takes out (none when it adds a group), or with the ones it puts in instead."""
     df = _ROWS[_ROWS[f"Y_{key}"].notna()]
     tr, te = df[df["SEASON"] < S], df[df["SEASON"] == S]
     y = te[f"Y_{key}"].to_numpy(float)
     line = np.floor(te[f"{key}_EWM"].to_numpy(float)) + 0.5
     cfg = stat_recipe(key, dist)
-    base = [f for f in cfg.features if f not in extra]
-    cfg = replace(cfg, features=base + extra if with_extra else base)
+    rest = [f for f in cfg.features if f not in added and f not in out]
+    cfg = replace(cfg, features=rest + (added if changed else out))
     mu, p = Pipeline(cfg).fit(tr).prob_over(te, line, dist)
     over = (y > line).astype(float)
     return dict(n=len(te), mae=float(np.mean(np.abs(y - mu))), **line_metrics(p, over),
@@ -247,9 +257,19 @@ def _ab_fold(key: str, S: int, extra: list, with_extra: bool, dist: str) -> dict
 _ROWS = None   # a training worker's own copy of the training rows
 
 
-def _load_training_rows():
+def _columns(cfgs: list[Config], keys: list[str], extra: list[str] = ()) -> list[str]:
+    """The columns these models read: their inputs and targets, the season and date, and each stat's usual
+    line (<key>_EWM). Each worker gets its own copy of the training rows, and all ~700 columns four times
+    over ran a 16 GB PC out of memory (Nov 19, 2026); these are the same rows and values, so the models
+    come out the same."""
+    cols = ["SEASON", "GAME_DATE", *(f"{key}_EWM" for key in keys), *extra]
+    return list(dict.fromkeys(cols + [c for cfg in cfgs for c in (*cfg.features, cfg.target)]))
+
+
+def _use_training_rows(rows: pd.DataFrame):
+    """A worker's initializer: keep the training rows the main process sent."""
     global _ROWS
-    _ROWS = F.load_features()
+    _ROWS = rows
 
 
 def _fit_and_save(key: str, cfg: Config, inner: int) -> tuple[int, bool]:
@@ -269,7 +289,7 @@ if __name__ == "__main__":
     ap.add_argument("--redo", action="store_true", help="with --evaluate: test all stats again")
     ap.add_argument("--train", action="store_true", help="train every tested stat")
     ap.add_argument("--only", help="comma-separated keys, e.g. XFGA,XFTM (just these stats)")
-    ap.add_argument("--ab", choices=sorted(EXTRA_GROUPS), help="test extra inputs: with vs. without, e.g. lineups")
+    ap.add_argument("--ab", choices=sorted(AB_TESTS), help="test an input change: before vs. after, e.g. lineups")
     ap.add_argument("--folds", default="2024,2025", help="with --ab: seasons to test on")
     a = ap.parse_args()
     only = a.only.split(",") if a.only else None

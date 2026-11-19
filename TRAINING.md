@@ -451,6 +451,105 @@ shoots and how he creates his shots says how many shots and trips to the line he
 averages. Five stats were better again on the season the decision didn't use; tracking managed that for one.
 Like tracking, it doesn't help Points: knowing how a player scores doesn't predict how much.
 
+## 4h. Tracking counted differently over the years (November 2026)
+
+NBA.com has changed how it counts several tracking stats. Checked by comparing each stat with a box-score
+count it should move with, league-wide and for the same players, so changes in how the game is played or
+who plays can't explain it.
+
+**From 2023-24 to 2024-25, the same 337 players** (300+ minutes in both seasons):
+
+| Per minute | Median change | Went up for |
+|---|---|---|
+| Time holding the ball | +84% | 99% of them |
+| Drives | +49% | 91% |
+| Paint touches | +34% | 85% |
+| Touches | −5% | 34% |
+| Offensive rebound chances | −15% | 20% |
+| *Shots (box score)* | *+1%* | *54%* |
+| *Offensive rebounds (box score)* | *+3%* | *55%* |
+
+**The other changes:**
+
+- **Start of 2025-26:** time holding the ball fell back part of the way (league: 0.145 → 0.100 of each
+  minute, against 0.086 before 2024-25), and drives and paint touches eased.
+- **Nov 6, 2025 to Mar 23, 2026:** rebound chances ran about 30% low (1.25 per rebound instead of about
+  1.8). On Mar 24, 2026 they jumped back: +40% for all 210 players who played on both sides of that date.
+- **2017-18:** offensive rebound chances 18% higher than any later season, and drive free throws fell
+  sharply in March and April 2018.
+- **Not inputs:** free-throw assists doubled from 2019-20 and are missing for all of 2024-25.
+
+The cause isn't published. Hawk-Eye took over the NBA's camera tracking from 2023-24, but NBA.com's numbers
+change a season later.
+
+**The fix** (`features.TRACKING_REL`, `features.league_tracking_rates`): each game's counts are measured
+against the league's under the same counting.
+
+- Each count is divided by the league's rate per minute that day, pooled with the days just before it in
+  the same season until it covers 10+ games. A later day is never used.
+- His assists, rebounds and turnovers are compared with what the league's conversion that day would give
+  his chances.
+- So 1.0 means league average: Nikola Jokić's potential assists come out at 2.1, his rebound chances at 1.6.
+- Built from the whole tracking file, so the app gets exactly the same values as training (checked).
+
+For the same 337 players across 2024-25, the corrected numbers barely move: drives +3% (up for 54%),
+paint touches 0%, touches +1%, offensive rebound chances −4%. Rebound chances across Mar 24, 2026: 0%,
+up for exactly half. Time holding the ball still moves +8%: the new counting changed it more for some
+players than for others, which a league-wide correction can't undo.
+
+**Test** (`python stat_models.py --ab tracking_rel`): each of the 6 tracking stats with its tracking inputs
+as they were vs. corrected, over/under Brier at the usual line, resampling whole nights.
+
+| Stat | 2023-25 (decide) | 2025-26 check | 2026-27 so far |
+|---|---|---|---|
+| Turnovers | 0.2306 → 0.2303, **better** | no clear difference (0.0000) | no clear difference (−0.0003) |
+| Rebounds | no clear difference (+0.0001) | 0.2364 → 0.2358, **better** | no clear difference (−0.0001) |
+| Offensive Rebounds | no clear difference (+0.0001) | 0.2283 → 0.2277, **better** | no clear difference (−0.0003) |
+| Two Pointers Made | no clear difference (+0.0001) | no clear difference (−0.0001) | 0.2190 → 0.2183, **better** |
+| Rebs+Asts | no clear difference (−0.0001) | no clear difference (−0.0002) | no clear difference (−0.0002) |
+| Free Throws Attempted | no clear difference (+0.0001) | no clear difference (0.0000) | no clear difference (0.0000) |
+
+On 2025-26, the season of the rebound-chance dip, the rebound models' calibration also improved: Rebounds
+2.3% → 0.7%, Offensive Rebounds 1.5% → 0.5%. Saved as `experiments/stat_ab_tracking_rel_tune.csv`,
+`_2025.csv` and `_2026.csv`.
+
+**Decision:** all 6 use the corrected version. By the rule set before the test (better on the deciding
+seasons, no worse on the check) only Turnovers qualified. The other 5 were switched because none was worse
+in any of the 18 comparisons, 4 of the 6 were clearly better in one period, and the corrected inputs drop
+counts known to be inconsistent. The raw `features.TRACKING` inputs are still built, for the experiments.
+
+**Memory:** this test first stalled: each of the 4 training processes loaded all 513 input columns (about
+2.4 GB each), and the 16 GB PC ran out of memory. The training processes now get only the columns their
+models read (171 for this test, 408 to train all 25 stats). Same rows and values, so the models are
+identical (checked: a Steals model trained both ways gave the same chances to the last digit).
+
+## 4i. Hustle stats: what can be trusted (November 2026)
+
+The review also suggested deflections and box outs. NBA.com's hustle dashboard can be asked for a single day
+like the tracking ones (`nbaline/hustle.py`): 1,457 of 1,471 game days since 2017-18 (the 2020 restart is
+missing), 99% of 15+ minute games. Hustle stats are logged by people at each game, so two things were
+checked before any test: whether the league-wide rate holds steady over the seasons, and whether some
+arenas log far more than others (box-score steals and rebounds show how much arenas differ by chance).
+
+| Hustle stat | Over the seasons | Between arenas |
+|---|---|---|
+| **Box outs** | **What's counted changed.** 53% of logged box outs led to a team rebound in 2017-18, 98-99% from 2024-25: box outs that didn't win the ball stopped being logged. Per minute it fell to a fifth by 2022-23, then held near 0.025, sagging late each season | Up to 2× apart since 2021-22 (spread 12-17%, steals 6-8%) |
+| **Contested shots** | Down 40% per opponent shot from 2017-18 to now, gradually | Steady (5%) |
+| **Deflections** | Steady until 2023-24, then +15% at the start of 2024-25 and +5% at the start of 2025-26 | Steady (6-7%) |
+| **Screen assists** | Steady until 2024-25, then −15% at the start of 2025-26 | 9-16% |
+| **Loose balls** | Down 55% from 2017-18 to now, gradually | Growing, to 16% |
+| **Charges drawn** | Too rare to tell | 3-11× apart |
+
+**What it means for testing them:**
+
+- Deflections, contested shots, screen assists and loose balls can be measured against the league the
+  same way as tracking (4h), which handles season steps and slow drifts.
+- Box outs changed meaning, not just scale, so they're consistent only from about 2022-23. They'd have to
+  be left out or used from 2022-23 on.
+- Charges are too rare and depend too much on who logs them.
+
+Not tested in the models yet.
+
 ---
 
 ## 5. What would actually move the needle next

@@ -4,6 +4,7 @@ Every feature for a game is computed ONLY from games played before it
 (that's what the shift(1) in lag() does). Without this, the model would
 "see the future" in training and look far better than it really is.
 """
+import functools
 from pathlib import Path
 
 import numpy as np
@@ -45,12 +46,20 @@ EXTRA = {
 LINEUPS = ["STARTING", "START_RATE_L10", "ROLE_CHANGE", "MIN_ROLE_L20", "MIN_ROLE_GAP"]
 # Player tracking (tracking.py, NBA.com's camera tracking, every season): the chances behind the box score.
 # Per minute over his last 10 games with tracking, and how often chances turn into the stat over his last
-# 20 (a noisier rate, so a longer window). Tested on its own (E11): used by the stats in WITH_TRACKING.
+# 20 (a noisier rate, so a longer window). Tested on its own (E11); the stats in WITH_TRACKING now use the
+# TRACKING_REL version below.
 TRACKING_PER_MIN = {"POT_AST": "POTENTIAL_AST", "PASSES": "PASSES_MADE", "REB_CHANCES": "REB_CHANCES",
                     "OREB_CHANCES": "OREB_CHANCES", "DREB_CHANCES": "DREB_CHANCES", "DRIVES": "DRIVES",
                     "DRIVE_FTA": "DRIVE_FTA", "TOUCHES": "TOUCHES", "PAINT_TOUCHES": "PAINT_TOUCHES",
                     "TIME_OF_POSS": "TIME_OF_POSS"}
 TRACKING = [f"{k}_PM_L10" for k in TRACKING_PER_MIN] + ["AST_PER_POT_L20", "REB_PER_CHANCE_L20", "TOV_PER_TOUCH_L20"]
+# The same inputs measured against the league under the same counting (league_tracking_rates), because NBA.com
+# has changed how it counts several of them: 1.0 = the league's rate. Tested against TRACKING
+# (stat_models.py --ab tracking_rel, TRAINING.md 4h): the stats in WITH_TRACKING use this version.
+CONVERSIONS = {"AST_PER_POT": ("AST", "POTENTIAL_AST"), "REB_PER_CHANCE": ("REB", "REB_CHANCES"),
+               "TOV_PER_TOUCH": ("TOV", "TOUCHES")}   # name -> (what the chances became, the chances)
+TRACKING_REL = [f"{k}_REL_L10" for k in TRACKING_PER_MIN] + [f"{k}_REL_L20" for k in CONVERSIONS]
+LEAGUE_MIN_GAMES = 10   # a day's league rates pool it with the days just before it (same season) up to 10+ games
 # Shot profile (shots.py, NBA.com's shot charts, every season): where and how he shoots. Attempts per minute
 # in each zone and of self-created jumpers, and his average shot distance, over his last 10 games; over his
 # last 20, his shooting at the rim, the points per shot his zones would score at league-average accuracy,
@@ -126,6 +135,11 @@ LABELS = {
     "XPTS_PER_SHOT_L20": "Points per shot from his shot mix at league-average accuracy (last 20)",
     "SHOT_MAKING_L20": "Points per shot above or below what his shot mix usually scores (last 20)",
 }
+LABELS.update({f"{k}_REL_L10": LABELS[f"{k}_PM_L10"].replace(" (last 10)", ", vs. the league (last 10)")
+               for k in TRACKING_PER_MIN})
+LABELS.update({"AST_PER_POT_REL_L20": "Assists from his potential assists, vs. the league (last 20)",
+               "REB_PER_CHANCE_REL_L20": "Rebounds from his rebound chances, vs. the league (last 20)",
+               "TOV_PER_TOUCH_REL_L20": "Turnovers per touch, vs. the league (last 20)"})
 
 
 def load_raw():
@@ -145,12 +159,51 @@ def add_tracking(p: pd.DataFrame) -> pd.DataFrame:
     return p.merge(tr, on=["GAME_DATE", "PLAYER_ID"], how="left")
 
 
+def league_tracking_rates() -> pd.DataFrame:
+    """League-wide tracking rates for each game day: each TRACKING_PER_MIN count per minute played, and
+    how often potential assists, rebound chances and touches became assists, rebounds and turnovers
+    (CONVERSIONS). NBA.com has changed how it counts several of these: for the same players, drives rose
+    49% and time holding the ball 84% from 2023-24 to 2024-25, and rebound chances ran about 30% low from
+    November 2025 until March 24, 2026 (TRAINING.md 4h). So each game is measured against the league under
+    the same counting: that day, pooled with the days just before it in the same season until it covers
+    LEAGUE_MIN_GAMES games, never a later day. Built from the whole tracking file, so training and the app
+    get the same values; recomputed when the tracking file or the box scores change."""
+    return _league_tracking_rates(TRACKING_FILE.stat().st_mtime if TRACKING_FILE.exists() else 0,
+                                  PLAYER_LOGS.stat().st_mtime)
+
+
+@functools.lru_cache(maxsize=1)
+def _league_tracking_rates(*file_times: float) -> pd.DataFrame:
+    logs = pd.read_csv(PLAYER_LOGS, usecols=["GAME_DATE", "GAME_ID", "PLAYER_ID", "MIN", "AST", "REB", "TOV"])
+    games = logs.merge(tracking.load().drop(columns="TEAM_ID"), on=["GAME_DATE", "PLAYER_ID"])
+    counts = ["MIN", "AST", "REB", "TOV", *TRACKING_PER_MIN.values()]
+    day = games.groupby("GAME_DATE").agg(GAMES=("GAME_ID", "nunique"), **{c: (c, "sum") for c in counts})
+    day.index = pd.to_datetime(day.index)
+    pooled = []
+    for _, d in day.groupby(day.index.map(lambda t: tracking.season_of(t.date()))):
+        total = d.cumsum().to_numpy()                                    # season totals through each day
+        before = np.vstack([np.zeros(d.shape[1]), total[:-1]])           # and before it
+        # the latest first day that still gives LEAGUE_MIN_GAMES games (the season so far if it has fewer)
+        first = np.searchsorted(before[:, 0], total[:, 0] - LEAGUE_MIN_GAMES, side="right") - 1
+        pooled.append(pd.DataFrame(total - before[np.clip(first, 0, None)], index=d.index, columns=d.columns))
+    w = pd.concat(pooled)
+    rates = pd.DataFrame({c: w[c] / w["MIN"] for c in TRACKING_PER_MIN.values()})
+    for name, (made, chances) in CONVERSIONS.items():
+        rates[name] = w[made] / w[chances]
+    return rates.replace(0, np.nan)
+
+
 def tracking_features(p: pd.DataFrame) -> pd.DataFrame:
     """TRACKING inputs, as of before each game: his chances per minute over his last 10 tracked games,
     and how often they became assists, rebounds and turnovers over his last 20. Only games with tracking
-    count, minutes included. p: sorted by player and date."""
+    count, minutes included. TRACKING_REL: the same against the league's rates under the same counting
+    (each game's counts divided by the league's per-minute rate that day; his assists, rebounds and
+    turnovers against what the league's conversion would give his chances). p: sorted by player and date."""
     tracked = p["TOUCHES"].notna()
+    league = league_tracking_rates().reindex(p["GAME_DATE"].to_numpy()).set_axis(p.index)
     temp = {"_TMIN": p["MIN"], "_TAST": p["AST"], "_TREB": p["REB"], "_TTOV": p["TOV"]}
+    temp.update({f"_REL_{col}": p[col] / league[col] for col in TRACKING_PER_MIN.values()})
+    temp.update({f"_X{made}": p[chances] * league[name] for name, (made, chances) in CONVERSIONS.items()})
     p = p.assign(**{k: v.where(tracked) for k, v in temp.items()})
     s = lambda col, n: lag(p, "PLAYER_ID", col, n, "sum")
     minutes = s("_TMIN", 10).clip(lower=1)
@@ -158,6 +211,9 @@ def tracking_features(p: pd.DataFrame) -> pd.DataFrame:
     new["AST_PER_POT_L20"] = s("_TAST", 20) / s("POTENTIAL_AST", 20).clip(lower=1)
     new["REB_PER_CHANCE_L20"] = s("_TREB", 20) / s("REB_CHANCES", 20).clip(lower=1)
     new["TOV_PER_TOUCH_L20"] = 100 * s("_TTOV", 20) / s("TOUCHES", 20).clip(lower=1)
+    new.update({f"{name}_REL_L10": s(f"_REL_{col}", 10) / minutes for name, col in TRACKING_PER_MIN.items()})
+    new.update({f"{name}_REL_L20": s(f"_T{made}", 20) / s(f"_X{made}", 20).clip(lower=1)
+                for name, (made, _) in CONVERSIONS.items()})
     # .copy() packs the table back into one block per type: build_features adds dozens more columns one at
     # a time after this, and pandas warns ("highly fragmented") once a table is in 100+ pieces
     return pd.concat([p.drop(columns=list(temp)), pd.DataFrame(new, index=p.index)], axis=1).copy()
@@ -585,7 +641,8 @@ def feature_label(f: str) -> str:
 NO_LINEUPS = {"XTD"}
 # Player tracking helped these 6 stats on 2023-24 and 2024-25 and none got worse on 2025-26 (E11, TRAINING.md
 # 4f): rebound chances the rebound stats, touches turnovers. It made no difference to 17 others, and made
-# assists and Pts+Asts worse, so they go without.
+# assists and Pts+Asts worse, so they go without. Since Nov 19, 2026 they get it measured against the league
+# (TRACKING_REL): never worse than the raw counts in three test periods, better in one for 4 of the 6 (4h).
 WITH_TRACKING = {"TOV", "REB", "XOREB", "RA", "X2PM", "XFTA"}
 # The shot profile helped these 10 stats on 2023-24 and 2024-25 and none got worse on 2025-26 (E12, TRAINING.md
 # 4g): mostly shot and free-throw volume, where a player shoots and how he gets his shots. It made no difference
@@ -598,7 +655,7 @@ def stat_feature_list(key: str) -> list[str]:
     if others:
         others += ["PTS_L10", "PTS_SEASON", "PTS_STD_L10"]
     return ([f"{key}_{h}" for h in HIST] + others + SHARED + ([] if key in NO_LINEUPS else LINEUPS)
-            + (TRACKING if key in WITH_TRACKING else []) + (SHOTS if key in WITH_SHOTS else []))
+            + (TRACKING_REL if key in WITH_TRACKING else []) + (SHOTS if key in WITH_SHOTS else []))
 
 
 def history_keys(keys) -> list[str]:
