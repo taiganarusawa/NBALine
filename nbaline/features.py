@@ -9,6 +9,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from scipy.stats import norm
 
 from . import hustle, lineups, shots, tracking
 from .paths import (DUNKS, FEATURES_CACHE, HUSTLE as HUSTLE_FILE, PLAYER_LOGS, SHOTS as SHOTS_FILE, STARTERS,
@@ -87,6 +88,19 @@ BOX_OUTS_FROM = 2022    # the first season box outs were logged the way they are
 RETURN = ["GAMES_SINCE_RETURN", "ABSENCE_GAMES", "PRE_ABSENCE_MIN", "MIN_SINCE_RETURN", "RETURN_RECOVERY", "MIN_L1"]
 RETURN_AFTER = 2        # missing this many team games or more in a row starts a return
 RETURN_WINDOW = 10      # the RETURN inputs follow the first 10 games back; after that he counts as settled
+# Tonight's game (E15): the margin his team should win or lose by, from both teams' recent net ratings, home
+# court, back-to-backs and who's out on each side; the chance it ends 15+ either way; how his minutes usually
+# change in blowouts; and so the minutes he can expect to lose to one. Blowouts were what cost More picks
+# minutes (TRAINING.md 4j). The margin is a straight-line fit on 2017-18 to 2020-21 (fit_margin_model), earlier
+# than any season the models are tested on, so it never learns from a test season.
+MARGIN = ["EXP_MARGIN", "BLOWOUT_CHANCE", "BLOWOUT_MIN_GAP_L40", "EXP_BLOWOUT_MIN_LOSS"]
+MARGIN_TERMS = ["NET_PTS", "HOME_SIDE", "MISSING_MIN_DIFF", "MISSING_FGA_DIFF", "B2B_DIFF"]
+# Fitted Nov 19, 2026. On 2021-22 to 2025-26 it misses final margins by 14.1 points (14.3 without the absence
+# terms, 15.5 guessing 0), and its blowout chance matches how often they happened (said 27%: 30%; said 55%: 54%).
+MARGIN_COEF = {"const": -0.0275, "NET_PTS": 0.4922, "HOME_SIDE": 1.8997, "MISSING_MIN_DIFF": 0.0124,
+               "MISSING_FGA_DIFF": -0.1269, "B2B_DIFF": 1.5053}
+MARGIN_SD = 13.4        # how far final margins land from the expected one (typical miss), from the same fit
+BLOWOUT_AT = 15         # a final margin this big either way counts as a blowout
 FEATURES = V1  # overwritten by the trained model's saved feature list at prediction time
 
 LABELS = {
@@ -169,7 +183,12 @@ LABELS.update({"AST_PER_POT_REL_L20": "Assists from his potential assists, vs. t
                "PRE_ABSENCE_MIN": "His minutes before the absence (last 10)",
                "MIN_SINCE_RETURN": "His minutes since returning",
                "RETURN_RECOVERY": "Minutes since returning, as a share of before the absence",
-               "MIN_L1": "Minutes, last game"})
+               "MIN_L1": "Minutes, last game",
+               "OPP_MISSING_MIN": "Opponent minutes missing (absences)",
+               "EXP_MARGIN": "Expected final margin for his team (ratings, home, rest, absences)",
+               "BLOWOUT_CHANCE": "Chance the game ends 15+ points either way",
+               "BLOWOUT_MIN_GAP_L40": "His minutes in blowouts minus in other games (last 40)",
+               "EXP_BLOWOUT_MIN_LOSS": "Minutes he can expect to lose to a blowout tonight"})
 
 
 def load_raw():
@@ -294,6 +313,40 @@ def hustle_features(p: pd.DataFrame) -> pd.DataFrame:
     minutes = {col: s("_HBOX_MIN" if col == "BOX_OUTS" else "_HMIN", 10).clip(lower=1) for col in HUSTLE_PER_MIN.values()}
     new = {f"{name}_REL_L10": s(f"_HREL_{col}", 10) / minutes[col] for name, col in HUSTLE_PER_MIN.items()}
     return pd.concat([p.drop(columns=list(temp)), pd.DataFrame(new, index=p.index)], axis=1).copy()
+
+
+def margin_terms(p: pd.DataFrame) -> pd.DataFrame:
+    """What the expected margin is built from, for his team: the gap in recent net rating in points (at the
+    two teams' expected pace), home (+1) or away (-1), the minutes and shots missing on his side minus the
+    other side's (absences), and the other team on a back-to-back (+1) or his team (-1)."""
+    pace = (p["OWN_PACE_L10"] + p["OPP_PACE_L10"]) / 2
+    return pd.DataFrame({
+        "NET_PTS": (p["OWN_NET_RTG_L10"] - p["OPP_NET_RTG_L10"]) * pace / 100,
+        "HOME_SIDE": 2 * p["HOME"] - 1,
+        "MISSING_MIN_DIFF": p["MISSING_MIN"].fillna(0) - p["OPP_MISSING_MIN"].fillna(0),
+        "MISSING_FGA_DIFF": p["MISSING_FGA"].fillna(0) - p["OPP_MISSING_FGA"].fillna(0),
+        "B2B_DIFF": p["OPP_B2B"] - p["B2B"],
+    }, index=p.index)
+
+
+def fit_margin_model(games: pd.DataFrame, last_season: int = 2020) -> tuple[dict, float]:
+    """Where MARGIN_COEF and MARGIN_SD come from: least squares of each team's final margin (FINAL_MARGIN) on
+    margin_terms, one row per team-game, seasons through last_season. Run by hand when the terms change."""
+    g = games[games["SEASON"] <= last_season].dropna(subset=[*MARGIN_TERMS, "FINAL_MARGIN"])
+    X = np.column_stack([np.ones(len(g)), g[MARGIN_TERMS].to_numpy(float)])
+    coef, *_ = np.linalg.lstsq(X, g["FINAL_MARGIN"].to_numpy(float), rcond=None)
+    sd = float(np.std(g["FINAL_MARGIN"].to_numpy(float) - X @ coef))
+    return dict(zip(["const", *MARGIN_TERMS], np.round(coef, 4).tolist())), round(sd, 2)
+
+
+def margin_features(p: pd.DataFrame) -> pd.DataFrame:
+    """MARGIN inputs (known before the game): the expected margin for his team, the chance of a blowout
+    either way (a normal spread of MARGIN_SD around it), and the minutes he usually loses in one times that
+    chance. BLOWOUT_MIN_GAP_L40 itself is built with the close-game minutes."""
+    terms = margin_terms(p)
+    exp = MARGIN_COEF["const"] + sum(MARGIN_COEF[t] * terms[t] for t in MARGIN_TERMS)
+    chance = norm.cdf((-BLOWOUT_AT - exp) / MARGIN_SD) + norm.sf((BLOWOUT_AT - exp) / MARGIN_SD)
+    return p.assign(EXP_MARGIN=exp, BLOWOUT_CHANCE=chance, EXP_BLOWOUT_MIN_LOSS=chance * p["BLOWOUT_MIN_GAP_L40"])
 
 
 def return_features(p: pd.DataFrame, same_team: pd.Series) -> pd.DataFrame:
@@ -635,7 +688,10 @@ def build_features(p: pd.DataFrame, t: pd.DataFrame, overrides: dict | None = No
     p["MIN_CLOSE_L10"] = lag(p, P, "_MIN_CLOSE", 10)
     p["BLOWOUT_L5"] = lag(p, P, "_BLOWOUT", 5)
     p["MIN_CLOSE_GAP"] = p["MIN_CLOSE_L10"] - p["MIN_L5"]
-    p = p.drop(columns=["_MIN_CLOSE", "_BLOWOUT", "MARGIN"])  # MARGIN is this game's result: never an input
+    p["_MIN_BLOWN"] = p["MIN"].where(p["MARGIN"] >= BLOWOUT_AT)     # how his minutes change in blowouts
+    p["_MIN_NOT_BLOWN"] = p["MIN"].where(p["MARGIN"] < BLOWOUT_AT)
+    p["BLOWOUT_MIN_GAP_L40"] = lag(p, P, "_MIN_BLOWN", 40) - lag(p, P, "_MIN_NOT_BLOWN", 40)
+    p = p.drop(columns=["_MIN_CLOSE", "_BLOWOUT", "_MIN_BLOWN", "_MIN_NOT_BLOWN", "MARGIN"])  # MARGIN: this game's result
 
     # ---- starting lineups: tonight's role, how often he's started lately, and his usual minutes in
     # that role. This game's STARTED is posted before tip-off (Expected, then Confirmed), so it's known
@@ -654,9 +710,10 @@ def build_features(p: pd.DataFrame, t: pd.DataFrame, overrides: dict | None = No
     miss, details = missing_players(p, t, overrides, official)
     p = p.merge(miss, on=["GAME_ID", "TEAM_ID"], how="left")
     p = p.merge(miss.drop(columns="_ABSENT").rename(columns={"TEAM_ID": "OPP_ID", "MISSING_FGA": "OPP_MISSING_FGA",
-                                     "MISSING_COUNT": "OPP_MISSING_COUNT", "MISSING_MIN": "_OMM",
+                                     "MISSING_COUNT": "OPP_MISSING_COUNT", "MISSING_MIN": "OPP_MISSING_MIN",
                                      "MISSING_REB": "OPP_MISSING_REB", "MISSING_AST": "_OMA"}),
-                on=["GAME_ID", "OPP_ID"], how="left").drop(columns=["_OMM", "_OMA"])
+                on=["GAME_ID", "OPP_ID"], how="left").drop(columns=["_OMA"])
+    p = margin_features(p)
     # ---- this player's own record without tonight's absent teammates
     p = p.sort_values([P, "GAME_DATE"]).reset_index(drop=True)
     rows = None

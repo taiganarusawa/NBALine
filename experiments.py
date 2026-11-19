@@ -128,6 +128,13 @@ reg(Config("E14_return", BEST_FEATS + F.LINEUPS + F.RETURN, **B1, params=TUNED, 
 reg(replace(points_recipe(), name="FINAL_NOR", features=[f for f in points_recipe().features if f not in F.RETURN],
             note="FINAL without return from absence"))
 
+# ---- E15: tonight's game: expected margin from ratings, home, rest and absences on both sides, the chance of a
+# blowout, and the minutes he usually loses in one. Compared against E14_return (today's Points inputs) on the
+# tuning folds; FINAL_M is the final model with them.
+reg(Config("E15_margin", BEST_FEATS + F.LINEUPS + F.RETURN + F.MARGIN, **B1, params=TUNED, note="+ expected margin"))
+reg(replace(points_recipe(), name="FINAL_M", features=points_recipe().features + F.MARGIN,
+            note="FINAL + expected margin"))
+
 
 def run(cfg: Config, folds, df) -> pd.DataFrame:
     rows, per_row = [], {}

@@ -708,6 +708,36 @@ for the scoring stats (1-4% of each model's edge over his recent average), which
 directly on minutes. The 5 that passed the rule use them too (old models in `models/before_return_more`);
 Defensive Rebounds and Personal Fouls were better on 2025-26 only, so they go without.
 
+## 4l. Expected margin and blowout chance (`E15_margin`, November 2026)
+
+Blowouts cost starters minutes (4j), and the model's blowout inputs (`NET_DIFF`, `BLOWOUT_L5`) don't account
+for who's out tonight. **4 inputs** (`features.MARGIN`):
+
+- **Expected margin** for his team: a straight-line fit of final margins on both teams' recent net ratings (at
+  their expected pace), home court, back-to-backs, and the minutes and shots missing on each side
+  (`features.margin_terms`, `fit_margin_model`). Fitted on 2017-18 to 2020-21 only, before any test season.
+- **Blowout chance:** the chance it ends 15+ either way, from a normal spread around the expected margin.
+- **His minutes in blowouts minus in other games** (last 40), and that times the blowout chance: the minutes
+  he can expect to lose tonight.
+
+The margin model itself is sound. On 2021-22 to 2025-26 it misses final margins by 14.1 points (14.3 without
+the absence terms, 15.5 guessing 0), and its blowout chance matches how often blowouts happened (said 27%:
+30%; said 55%: 54%). The app's values match training's except where tonight's injury report differs from who
+actually sat, as for the other absence inputs.
+
+**Results:** no gain anywhere.
+
+| Test | Change | Verdict |
+|---|---|---|
+| Points, XGBoost, 2022-23 to 2024-25 (vs. `E14_return`) | 3.4910 → 3.4910, −0.0000 [−0.0012, +0.0011] | no difference |
+| Points, real model, 2025-26 and 2026-27 so far | 3.4492 → 3.4498, +0.0006 [−0.0016, +0.0028] | no clear difference |
+| PRA, P+R, P+A, Fantasy Score, 2023-25 | −0.0001 to 0.0000 | no clear difference |
+| Same, 2025-26 check | Fantasy Score +0.0004, **worse**; others no clear difference | |
+
+**Decision:** not used. The models already get what it carries from the inputs it's built from (both teams'
+ratings, home, back-to-backs, absences) plus `BLOWOUT_L5` and close-game minutes; a straight-line summary of
+them adds nothing a tree model can't find itself. The inputs are still built, so the test can be rerun.
+
 **Why this one worked:** tracking, shots and hustle describe how a player scores, which his box scores
 already show. These tell the model how far he still is from his normal minutes after an absence, which
 it couldn't see.
