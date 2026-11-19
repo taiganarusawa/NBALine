@@ -1,0 +1,38 @@
+> E6_tuned: tuned hyperparameters
+  E6_tuned fold 2022: CRPS 3.4930  MAE 4.843  rounds 1320  (20s)
+  E6_tuned fold 2023: CRPS 3.4921  MAE 4.834  rounds 1209  (21s)
+  E6_tuned fold 2024: CRPS 3.5205  MAE 4.892  rounds 1582  (28s)
+> E7_lowlr: half learning rate, ~2x rounds
+  E7_lowlr fold 2022: CRPS 3.4920  MAE 4.843  rounds 2219  (33s)
+  E7_lowlr fold 2023: CRPS 3.4922  MAE 4.835  rounds 2481  (41s)
+  E7_lowlr fold 2024: CRPS 3.5198  MAE 4.892  rounds 3036  (53s)
+> E7_recency2: recent seasons weigh more (half-life 2 seasons)
+  E7_recency2 fold 2022: CRPS 3.4965  MAE 4.848  rounds 1184  (19s)
+  E7_recency2 fold 2023: CRPS 3.4970  MAE 4.839  rounds 1047  (19s)
+  E7_recency2 fold 2024: CRPS 3.5233  MAE 4.894  rounds 743  (16s)
+> E7_recency4: recent seasons weigh more (half-life 4 seasons)
+  E7_recency4 fold 2022: CRPS 3.4947  MAE 4.844  rounds 1790  (26s)
+  E7_recency4 fold 2023: CRPS 3.4945  MAE 4.838  rounds 1108  (20s)
+  E7_recency4 fold 2024: CRPS 3.5201  MAE 4.892  rounds 1244  (24s)
+> E7_finetune: fine-tune: +150 trees fit only on the latest season
+  E7_finetune fold 2022: CRPS 3.4934  MAE 4.843  rounds 1320  (21s)
+  E7_finetune fold 2023: CRPS 3.4918  MAE 4.832  rounds 1209  (23s)
+  E7_finetune fold 2024: CRPS 3.5205  MAE 4.891  rounds 1582  (30s)
+> E8_mlp: neural net only
+  E8_mlp fold 2022: CRPS 3.5075  MAE 4.852  rounds None  (30s)
+  E8_mlp fold 2023: CRPS 3.5080  MAE 4.850  rounds None  (39s)
+  E8_mlp fold 2024: CRPS 3.5277  MAE 4.900  rounds None  (51s)
+> E8_ens3: blend: 70% XGBoost + 30% neural net
+  E8_ens3 fold 2022: CRPS 3.4897  MAE 4.836  rounds 1320  (45s)
+  E8_ens3 fold 2023: CRPS 3.4891  MAE 4.830  rounds 1209  (55s)
+  E8_ens3 fold 2024: CRPS 3.5162  MAE 4.886  rounds 1582  (76s)
+
+               MAE   RMSE   BIAS   CRPS  COV80  EWM_BRIER  EWM_LOGLOSS  EWM_ECE  EWM_ACC  L10_BRIER
+name                                                                                               
+E6_tuned    4.8566 6.2535 0.0767 3.5019 0.8021     0.2382       0.6688   0.0081   0.5868     0.2326
+E7_finetune 4.8555 6.2535 0.0618 3.5019 0.8022     0.2382       0.6688   0.0082   0.5871     0.2326
+E7_lowlr    4.8569 6.2526 0.0805 3.5013 0.8030     0.2382       0.6689   0.0080   0.5862     0.2327
+E7_recency2 4.8604 6.2605 0.0620 3.5056 0.8019     0.2385       0.6695   0.0071   0.5851     0.2330
+E7_recency4 4.8580 6.2568 0.0652 3.5031 0.8025     0.2383       0.6691   0.0076   0.5857     0.2328
+E8_ens3     4.8505 6.2481 0.0656 3.4984 0.8027     0.2379       0.6682   0.0085   0.5875     0.2323
+E8_mlp      4.8675 6.2770 0.0398 3.5144 0.8016     0.2390       0.6707   0.0151   0.5835     0.2335

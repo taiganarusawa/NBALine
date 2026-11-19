@@ -1,0 +1,29 @@
+# environment
+.venv/
+__pycache__/
+.env
+
+# downloaded data, trained models and logs: rebuilt with fetch_data.py / daily.py
+# (data/ also holds prizepicks.db: your entries, pasted boards and checked lines)
+data/
+models/
+logs/
+experiments/rows/
+
+# your own predictions and slates (personal betting data)
+predictions_log.csv
+slate_*.csv
+!slate_example.csv
+
+# the web page: Node packages and the built page, rebuilt with npm install / npm run build in frontend/
+frontend/node_modules/
+frontend/dist/
+
+# local tools, editors and OS files
+.claude/
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store
+*.log

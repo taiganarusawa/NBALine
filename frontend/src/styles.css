@@ -1,0 +1,461 @@
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --ink: #14171c; --muted: #616a76; --line: #e2e5ea;
+  --accent: #3554d1; --accent-ink: #ffffff; --more: #1f8a4c; --less: #c2410c;
+  --warn-bg: #fff4d6; --warn-ink: #7a5300; --bad-bg: #fde8e8; --bad-ink: #9b1c1c;
+  --chip: #eef1f5; --radius: 12px; --added-bg: #e3f5ea;
+  --lost: #d92d20;   /* a pick or entry that lost (red; --less is the orange of the LESS side) */
+  --amber: #d69a12;  /* "close, but not there" bars */
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1216; --card: #171b21; --ink: #e8ebef; --muted: #98a1ad; --line: #2a3038;
+    --accent: #7f97ff; --accent-ink: #0f1216; --more: #4cc283; --less: #ff8a50;
+    --warn-bg: #3a2f10; --warn-ink: #ffd88a; --bad-bg: #3b1515; --bad-ink: #ffb4b4; --chip: #222831;
+    --added-bg: #13301f; --lost: #f2555a; --amber: #e8b545;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 980px; margin: 0 auto; padding: 0 16px 48px; }
+h2 { margin: 0 0 6px; font-size: 18px; } h3 { margin: 24px 0 10px; font-size: 16px; }
+.top { display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  max-width: 980px; margin: 0 auto; padding: 16px; flex-wrap: wrap; }
+.brand { font-weight: 700; font-size: 20px; } .sub { font-weight: 400; color: var(--muted); font-size: 14px; }
+.status { color: var(--muted); font-size: 13px; }
+.top-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+@media (max-width: 640px) { .top-right { align-items: flex-start; } }
+.banner.ok { background: color-mix(in srgb, var(--more) 16%, var(--card)); color: var(--ink); }
+.banner pre { white-space: pre-wrap; font-size: 12px; margin: 6px 0 0; }
+#warnings, #updateWrap, #pageNoticeWrap { max-width: 980px; margin: 0 auto; padding: 0 16px; }
+.banner { background: var(--warn-bg); color: var(--warn-ink); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
+.banner.bad { background: var(--bad-bg); color: var(--bad-ink); }
+.tabs { display: flex; gap: 4px; max-width: 980px; margin: 0 auto 12px; padding: 0 16px; overflow-x: auto; }
+.tab { border: 0; background: transparent; color: var(--muted); padding: 10px 14px; border-radius: 10px;
+  font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.tab.active { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+a.tab { display: inline-block; text-decoration: none; }
+a.tab:hover:not(.active) { color: var(--ink); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
+.row { display: flex; align-items: center; } .gap { gap: 8px; } .wrap { flex-wrap: wrap; }
+.between { justify-content: space-between; } .hidden { display: none !important; }
+.muted { color: var(--muted); } .small { font-size: 13px; }
+label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+label.inline { flex-direction: row; align-items: center; gap: 8px; }
+.label { font-size: 13px; color: var(--muted); margin: 12px 0 4px; }
+input, select { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 10px; min-width: 0; }
+input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+button { font: inherit; cursor: pointer; border-radius: 8px; padding: 8px 14px; border: 1px solid var(--line);
+  background: var(--card); color: var(--ink); }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+button.ghost { background: transparent; }
+button:disabled { opacity: .55; cursor: wait; }
+.line-row { display: grid; grid-template-columns: 1fr 170px 90px 36px; gap: 8px; margin-bottom: 8px; }
+.line-row .remove { padding: 6px; color: var(--muted); }
+@media (max-width: 640px) { .line-row { grid-template-columns: 1fr 96px 36px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  .line-row .player { grid-column: 1 / -1; } }
+.pill { display: inline-block; background: var(--accent); color: var(--accent-ink); border-radius: 999px;
+  padding: 0 7px; font-size: 12px; margin-left: 4px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; background: transparent; padding: 8px 12px; }
+.seg button.on { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.seg button:disabled { cursor: not-allowed; opacity: .35; }
+.seg.small button { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; font-size: 13px; }
+.seg svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+.section-head { margin: 24px 0 10px; gap: 12px; } .section-head h3 { margin: 0; }
+
+/* result cards */
+.res { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 10px; }
+.res .head { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: baseline; }
+.res .name { font-weight: 700; font-size: 16px; }
+.res .meta { color: var(--muted); font-size: 13px; }
+.res .tag { background: var(--chip); border-radius: 6px; padding: 2px 8px; font-size: 13px; font-weight: 600; }
+.split { display: flex; height: 30px; border-radius: 8px; overflow: hidden; margin: 10px 0 6px; font-weight: 700; font-size: 13px; }
+.split div { display: flex; align-items: center; padding: 0 10px; color: #fff; white-space: nowrap; }
+.split .m { background: var(--more); } .split .l { background: var(--less); justify-content: flex-end; }
+.lean { font-weight: 700; } .lean.more { color: var(--more); } .lean.less { color: var(--less); }
+.notes { font-size: 13px; color: var(--muted); margin-top: 6px; }
+.notes .w { color: var(--warn-ink); background: var(--warn-bg); padding: 1px 6px; border-radius: 5px; }
+.notes .b { color: var(--bad-ink); background: var(--bad-bg); padding: 1px 6px; border-radius: 5px; }
+.chips { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+/* Check lines: who's out, one row per team / status ("OKC out  Chet Holmgren, Jalen Williams") */
+.inj { margin-top: 10px; font-size: 13px; }
+.inj-src { color: var(--muted); margin-bottom: 4px; } .inj-src b { color: var(--ink); font-weight: 600; }
+.inj-rows { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; }
+.inj-k { font-weight: 600; color: var(--muted); white-space: nowrap; } .inj-k.w { color: var(--warn-ink); }
+.inj .w { color: var(--warn-ink); background: var(--warn-bg); padding: 1px 6px; border-radius: 5px; }
+.inj-k.w { background: none; padding: 0; }
+/* Check lines: live section of a game in progress */
+.live-box { margin: 10px 0 4px; padding: 10px 12px 6px; border: 1px solid var(--line); border-radius: 10px; }
+.live-head { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; font-size: 13px; }
+.live-head .live-dot { margin-right: 0; }
+.live-head .live-label { color: #e5484d; letter-spacing: .04em; }
+.live-box.over .live-label { color: var(--muted); }
+.live-head .pace { margin-left: auto; }
+.live-head .feed-down { color: var(--warn-ink); background: var(--warn-bg); padding: 1px 6px; border-radius: 5px; font-size: 12px; }
+.live-box .pbar-row { margin-top: 8px; }
+.live-note { font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+.live-note .r-hit, .live-note .r-miss, .live-note .r-live { font-weight: 600; }
+.live-chance { font-size: 13px; margin-bottom: 4px; } .live-chance:empty { display: none; }
+.started-line { padding: 10px 2px 2px; border-top: 1px solid var(--line); }
+.chip { background: var(--chip); border-radius: 6px; padding: 1px 7px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.chip.o { outline: 1px solid var(--more); } .chip.u { outline: 1px solid var(--less); }
+details { margin-top: 8px; } summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+.reasons { font-size: 13px; margin: 6px 0 0; padding-left: 0; list-style: none; font-variant-numeric: tabular-nums; }
+.reasons b { display: inline-block; width: 52px; }
+.add { display: flex; gap: 6px; margin-top: 10px; }
+.add .more { border-color: var(--more); color: var(--more); } .add .less { border-color: var(--less); color: var(--less); }
+.error { color: var(--bad-ink); background: var(--bad-bg); border-radius: 8px; padding: 8px 10px; }
+.final { margin: 8px 0 2px; padding: 8px 10px; border-radius: 8px; background: var(--chip); font-size: 14px; }
+.final.ok { background: var(--added-bg); box-shadow: inset 4px 0 0 var(--more); }
+.final.bad { background: var(--bad-bg); box-shadow: inset 4px 0 0 var(--bad-ink); }
+.note { color: var(--warn-ink); background: var(--warn-bg); border-radius: 8px; padding: 8px 10px; margin-bottom: 12px; }
+
+/* slip + entries */
+.slip-pick { display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px; align-items: center;
+  border-bottom: 1px solid var(--line); padding: 8px 0; }
+.slip-pick .who { font-weight: 600; } .slip-pick .who span { font-weight: 400; color: var(--muted); font-size: 13px; }
+.mp { font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); min-width: 64px; text-align: right; }
+.empty { color: var(--muted); padding: 10px 0; }
+.manual { margin: 10px 0; } .manual .row { margin-top: 8px; }
+.reverted .label { margin: 10px 0 0; } .reverted .row { margin-top: 4px; }
+.payout { display: flex; flex-direction: column; font-size: 12px; color: var(--muted); }
+.payout input { width: 84px; }
+.odds:empty { display: none; }
+.odds { margin: 12px 0; padding: 10px 12px; background: var(--chip); border-radius: 10px; font-size: 14px; }
+.entry { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 10px; }
+.entry .eh { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-weight: 600; }
+/* 5 · Long shots: one line that hit. On a phone the numbers go under the name. */
+#longShotList { margin-top: 10px; }
+.lsrow { display: grid; grid-template-columns: 28px minmax(0, 1fr) 64px 104px 92px;
+  grid-template-areas: "rank who side chance actual"; gap: 10px; align-items: center;
+  padding: 9px 4px; border-top: 1px solid var(--line); }
+.lsrow .rank { grid-area: rank; font-weight: 700; color: var(--muted); text-align: center; }
+.lsrow .ls-who { grid-area: who; } .lsrow .bpick { grid-area: side; }
+.lsrow .ls-num { text-align: right; font-variant-numeric: tabular-nums; } .lsrow .ls-num b { font-size: 17px; }
+.lsrow .ls-chance { grid-area: chance; } .lsrow .ls-actual { grid-area: actual; }
+.badge.played { background: color-mix(in srgb, var(--accent) 16%, var(--card)); color: var(--accent); font-weight: 600; }
+@media (max-width: 640px) {
+  .lsrow { grid-template-columns: 24px 56px minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas: "rank who who who" "rank side chance actual"; row-gap: 6px; }
+}
+/* "Show 10 more · 240 left" / "Show fewer" under a long list (util.js showInSteps) */
+.more-row { display: flex; justify-content: center; gap: 8px; margin: 10px 0 4px; }
+.more-row:empty { display: none; }
+/* a graded pick: the same columns in every entry, so the list of graded entries lines up.
+   On a phone the line goes under the player's name. */
+.gpicks { margin-top: 6px; }
+.gpick { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 4fr) 60px 40px 84px;
+  grid-template-areas: "who line model actual result"; column-gap: 12px; align-items: center;
+  padding: 5px 0; border-top: 1px solid var(--line); font-size: 14px; font-variant-numeric: tabular-nums; }
+.g-who { grid-area: who; } .g-line { grid-area: line; } .g-result { grid-area: result; }
+.g-model { grid-area: model; text-align: right; } .g-actual { grid-area: actual; text-align: right; }
+@media (max-width: 640px) {
+  .gpick { grid-template-columns: minmax(0, 1fr) 50px 30px 64px; grid-template-areas: "who model actual result"
+    "line model actual result"; column-gap: 8px; row-gap: 1px; font-size: 13px; }
+  .g-line { color: var(--muted); }
+}
+/* a graded entry's "Why it won / lost" dropdown: one line per pick, misses first */
+.why > summary { padding: 2px 0; }
+.why-list { list-style: none; margin: 6px 0 2px; padding: 0; font-size: 13px; }
+.why-list li { padding: 7px 0; border-top: 1px solid var(--line); }
+.why-text { color: var(--muted); margin-top: 2px; }
+.why-text > div + div { margin-top: 2px; }
+.why-text b { color: var(--ink); font-weight: 600; }
+/* picks that won or lost together (one player, or one game) */
+.together { margin: 8px 0 4px; padding: 8px 10px; border-radius: 8px; font-size: 13px;
+  background: color-mix(in srgb, var(--accent) 9%, var(--card)); }
+.together .small { margin-top: 4px; }
+.status-won { color: var(--more); } .status-lost { color: var(--lost); } .status-partial, .status-refund { color: var(--warn-ink); }
+.r-hit { color: var(--more); font-weight: 600; } .r-miss { color: var(--lost); font-weight: 600; } .r-void, .r-push { color: var(--muted); }
+.r-live { color: var(--ink); } .r-pending { color: var(--muted); }
+.entry .locked { color: var(--more); }   /* money an open entry has already locked in */
+/* every pick decided and the entry pays something: a light green card */
+.entry.paid { background: color-mix(in srgb, var(--more) 8%, var(--card));
+  border-color: color-mix(in srgb, var(--more) 45%, var(--line)); }
+/* an open pick: player and how it's going on the left, the line on the right, progress bar below.
+   Every pick keeps a 3px left edge (invisible) so nothing shifts when a player is highlighted. */
+.picks { margin-top: 6px; }
+.pick { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "who box" "how box" "bar bar";
+  column-gap: 12px; row-gap: 3px; padding: 8px 9px 4px; border-top: 1px solid var(--line); border-left: 3px solid transparent; }
+.pick .who { grid-area: who; font-size: 14px; }
+.pick .who .game { margin: 0 2px; }
+.pick .who .jersey { color: var(--muted); font-size: 13px; font-weight: 600; }
+.score b { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+.score b.ahead { color: var(--more); } .score b.behind { color: var(--lost); }
+.pick .how { grid-area: how; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 13px; color: var(--muted); }
+.pick .how .r-hit, .pick .how .r-miss, .pick .how .r-live { font-weight: 600; }
+/* "Pace 80%" pill: green on pace for this pick, amber behind, red lost, grey push/void */
+.pace { padding: 1px 7px; border-radius: 6px; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums;
+  background: var(--chip); color: var(--muted); }
+.pace[hidden] { display: none; }
+.pace.good { background: color-mix(in srgb, var(--more) 15%, var(--card)); color: var(--more); }
+.pace.behind { background: var(--warn-bg); color: var(--warn-ink); }
+.pace.bad { background: color-mix(in srgb, var(--lost) 13%, var(--card)); color: var(--lost); }
+.pick.oncourt { background: color-mix(in srgb, var(--more) 7%, transparent); border-left-color: var(--more); }
+/* every line box is the same size, wide enough for the longest stat name (entries.js shortens a few) */
+.line-box { grid-area: box; align-self: center; width: 116px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 10px; text-align: center; line-height: 1.25; background: var(--card); }
+.line-box b { font-size: 16px; font-variant-numeric: tabular-nums; }
+.line-box .arrow { width: 15px; height: 15px; margin-right: 3px; vertical-align: -2px; fill: none;
+  stroke: currentColor; stroke-width: 2.8; stroke-linecap: round; stroke-linejoin: round; }
+.line-box.more .arrow { color: var(--more); } .line-box.less .arrow { color: var(--less); }
+.line-box .stat-name { display: block; font-size: 11px; color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* live progress bar: 0 on the left, the line on the right, his number under the end of the fill */
+.pick .pbar-row { grid-area: bar; margin-top: 6px; }
+.pbar { height: 8px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.pbar .fill { height: 100%; width: 0; border-radius: 99px; background: var(--ink); transition: width .6s ease; }
+.pbar .fill.won { background: var(--more); } .pbar .fill.lost { background: var(--lost); }
+.pbar .fill.even { background: var(--muted); }   /* push or void: the pick is removed */
+.pbar-val { position: relative; height: 18px; }
+.pbar-val span { position: absolute; top: 2px; transform: translateX(-50%); font-size: 12px; font-weight: 700; }
+.pbar-val .won { color: var(--more); } .pbar-val .lost { color: var(--lost); } .pbar-val .even { color: var(--muted); }
+/* live games: red dot before the player, and players on the floor highlighted */
+.live-dot { display: inline-block; width: 8px; height: 8px; margin-right: 7px; border-radius: 50%;
+  background: #e5484d; vertical-align: 1px; animation: live-pulse 1.6s ease-in-out infinite; }
+.live-dot[hidden] { display: none; }
+@keyframes live-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(229, 72, 77, .55); } 60% { box-shadow: 0 0 0 5px rgba(229, 72, 77, 0); } }
+@media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
+.badge.court { background: color-mix(in srgb, var(--more) 18%, var(--card)); color: var(--more); font-weight: 600; }
+.badge.bench { background: var(--chip); color: var(--muted); }
+/* an open entry's chances now: three numbers, then every amount it can still pay with its chance */
+.chances { margin-top: 10px; padding: 0 12px; border-radius: 10px; background: color-mix(in srgb, var(--chip) 55%, var(--card)); }
+/* its title row opens and closes it (chevron like the Results folds); closed, it still shows the key numbers */
+.chances-head { display: flex; align-items: center; gap: 4px 10px; flex-wrap: wrap; width: 100%; padding: 10px 0;
+  border: 0; border-radius: 0; background: none; color: var(--ink); font-size: 14px; text-align: left; }
+.chances-head::before { content: ""; width: 7px; height: 7px; margin: 0 2px 0 2px; border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted); transform: rotate(-45deg); transition: transform .3s ease; }
+.chances.open > .chances-head::before { transform: rotate(45deg); }
+.chances-head:hover > b:first-of-type { color: var(--accent); }
+.chances-brief { color: var(--muted); font-size: 13px; max-height: 3em; overflow: hidden; transition: opacity .2s ease, max-height .3s ease; }
+.chances-brief b { color: var(--ink); } .chances-brief b.up { color: var(--more); }
+.chances.open .chances-brief { opacity: 0; max-height: 0; }   /* open, the same numbers are right below */
+.chances-when { margin-left: auto; }
+/* sliding open and shut: the body's one grid row grows from 0 to its content's height, fading in */
+.chances-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .3s ease; }
+.chances.open .chances-body { grid-template-rows: 1fr; }
+.chances-clip { min-height: 0; overflow: hidden; }
+.chances-content { padding: 2px 0 12px; opacity: 0; transition: opacity .25s ease; }
+.chances.open .chances-content { opacity: 1; transition-delay: .05s; }
+@media (prefers-reduced-motion: reduce) {
+  .chances-body, .chances-content, .chances-brief, .chances-head::before { transition: none; } }
+/* a narrow card (phone, or the grid view): title and "live" on top, the numbers on the line under the title */
+.chances { container-type: inline-size; }
+@container (max-width: 520px) { .chances-brief { order: 1; flex-basis: 100%; padding-left: 23px; } }
+.chances-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+.chances-stats > div { display: flex; flex-direction: column; min-width: 0; }
+.chances-stats .k { font-size: 12px; color: var(--muted); }
+.chances-stats b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.chances-stats b.up { color: var(--more); }
+.tiers { display: grid; gap: 5px; }
+.chances-stats, .tiers { max-width: 560px; }   /* easy to read across on a wide window too */
+.tier { display: grid; grid-template-columns: 78px 76px minmax(40px, 1fr) 46px; gap: 8px; align-items: center; font-size: 13px; }
+.tier .t-pays, .tier .t-chance { text-align: right; font-variant-numeric: tabular-nums; }
+.tier .t-chance { font-weight: 600; }
+.t-bar { height: 8px; border-radius: 4px; background: var(--chip); overflow: hidden; }
+.t-bar span { display: block; height: 100%; border-radius: 4px; transition: width .4s ease; }
+.tier.profit .t-bar span { background: var(--more); }
+.tier.back .t-bar span { background: var(--amber); }
+.tier.none .t-bar span { background: var(--muted); opacity: .45; }
+.tier.none { color: var(--muted); }
+.tier.out { color: var(--muted); } .tier.out .t-hits, .tier.out .t-pays { text-decoration: line-through; }
+.tier.out .t-chance { font-weight: 400; }
+.t-push { display: block; font-size: 11px; color: var(--muted); }   /* "+1 push" under a tier only pushes lead to */
+@media (prefers-reduced-motion: reduce) { .t-bar span { transition: none; } }
+@media (max-width: 480px) { .tier { grid-template-columns: 70px 60px minmax(40px, 1fr) 44px; gap: 6px; }
+  .chances-stats b { font-size: 16px; } }
+/* open entries as a grid: two cards per row (one on narrow windows) */
+#openEntries.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+#openEntries.grid > .entry { margin: 0; }
+#openEntries.grid > :not(.entry) { grid-column: 1 / -1; }   /* "No open entries." / "Loading…" */
+#openEntries.grid .entry .eh { font-size: 14px; }
+@media (max-width: 960px) { #openEntries.grid { grid-template-columns: 1fr; } }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 10px; }
+.stat { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.stat .k { font-size: 13px; color: var(--muted); } .stat .v { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stat .d { font-size: 12px; color: var(--muted); }
+/* Results: the model's record by stat, one row each with a hit-rate bar and a break-even marker */
+.by-stat { margin-top: 16px; border-top: 1px solid var(--line); } .by-stat p { margin: 0; }
+/* collapsible: the title row opens and closes it, with a chevron that turns */
+.by-stat > summary { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; padding: 12px 0 10px;
+  list-style: none; color: var(--ink); font-size: 14px; }
+.by-stat > summary::-webkit-details-marker { display: none; }
+.by-stat > summary::before { content: ""; align-self: center; width: 7px; height: 7px; margin: 0 2px 0 3px;
+  border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-45deg); transition: transform .15s; }
+.by-stat[open] > summary::before { transform: rotate(45deg); }
+.by-stat > summary h3 { margin: 0; }
+.by-stat > summary:hover h3 { color: var(--accent); }
+.stat-table { width: 100%; max-width: 720px; border-collapse: collapse; margin: 10px 0 6px; font-size: 13px; }
+.stat-table th { text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); padding: 0 10px 6px 0;
+  border-bottom: 1px solid var(--line); }
+/* sortable headers: plain text that lights up on hover; the sorted column shows its arrow */
+.stat-table th .sort { padding: 2px 0; border: 0; border-radius: 4px; background: none; color: inherit; font-weight: inherit;
+  text-align: inherit; }
+.stat-table th .sort:hover, .stat-table th .sort.on { color: var(--ink); }
+.stat-table th .sort .arrow { margin-left: 3px; font-size: 9px; opacity: 0; }
+.stat-table th .sort:hover .arrow { opacity: .4; } .stat-table th .sort.on .arrow { opacity: 1; }
+.stat-table td { padding: 6px 10px 6px 0; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.stat-table .num { text-align: right; white-space: nowrap; }
+.stat-table .pm { font-size: 11px; color: var(--muted); }
+.stat-table .bar-cell { width: 42%; padding-right: 0; }
+.hit-bar { position: relative; height: 8px; border-radius: 99px; background: var(--line); }
+.hit-bar .fill { height: 100%; border-radius: 99px; background: var(--muted); }
+.hit-bar .be { position: absolute; top: -4px; bottom: -4px; margin-left: -1px;
+  border-left: 2px dashed color-mix(in srgb, var(--ink) 45%, transparent); }   /* the break-even: dashed, like on the how-sure chart */
+/* the ± range on a chart: a vertical line in the row's colour at its low end and at its high end */
+.hit-bar .range, .dumbbell .range { position: absolute; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--muted); }
+.hit-bar .range { top: -4px; bottom: -4px; }
+.dumbbell .range { top: 1px; height: 14px; }
+.stat-table tr.good .range { background: var(--more); }
+.stat-table tr.close .range { background: var(--amber); }
+.stat-table tr.bad .range { background: var(--lost); }
+.stat-table tr.few .range { background: var(--muted); opacity: .6; }
+.stat-table tr.good .fill { background: var(--more); } .stat-table tr.good .rate { color: var(--more); }
+.stat-table tr.close .fill { background: var(--amber); }
+.stat-table tr.bad .fill { background: var(--lost); } .stat-table tr.bad .rate { color: var(--lost); }
+.stat-table tr.few td { color: var(--muted); } .stat-table tr.few .fill { opacity: .45; }
+.chance-table { max-width: 560px; }
+/* Results: "by how sure it was": a plain-words takeaway, then said -> right per group with a small chart */
+.takeaway { margin: 0 0 4px !important; font-size: 14px; line-height: 1.5; }
+.sure-table td:first-child { white-space: nowrap; }
+.sure-table .db-cell { width: 34%; }
+.db-scale { position: relative; display: flex; justify-content: space-between; font-weight: 400; }
+.db-scale-be { position: absolute; transform: translateX(-50%); color: var(--ink); opacity: .7; }   /* over the dashed line */
+.dumbbell { position: relative; height: 16px; }
+.dumbbell > div { position: absolute; }
+.db-track { left: 0; right: 0; top: 7px; height: 2px; border-radius: 1px; background: var(--line); }
+.db-be { top: -6px; bottom: -6px; margin-left: -1px; border-left: 2px dashed color-mix(in srgb, var(--ink) 50%, transparent); }
+/* the ± range as one bracket ├──┤ in the row's colour: a line along the track with an end at each side */
+.db-range { top: 3px; height: 10px; box-sizing: border-box; color: var(--muted);
+  border-left: 2px solid currentColor; border-right: 2px solid currentColor;
+  background: linear-gradient(currentColor, currentColor) center / 100% 2px no-repeat; }
+.dumbbell.good .db-range { color: var(--more); } .dumbbell.close .db-range { color: var(--amber); }
+.dumbbell.bad .db-range { color: var(--lost); } .dumbbell.few .db-range { opacity: .5; }
+.db-said, .db-right { top: 3px; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; }
+.db-said { border: 2px solid var(--muted); background: var(--card); }
+.db-right { background: var(--muted); }
+.db-right.good { background: var(--more); } .db-right.close { background: var(--amber); } .db-right.bad { background: var(--lost); }
+.db-right.few { opacity: .45; }
+.legend .db-key { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin: 0 4px 0 10px; vertical-align: -1px; }
+.legend .db-key:first-child { margin-left: 0; }
+.db-key.said { border: 2px solid var(--muted); } .db-key.right { background: var(--ink); }
+.db-key.be { width: 0; border-radius: 0; border-left: 2px dashed color-mix(in srgb, var(--ink) 35%, transparent); }
+@media (max-width: 640px) { .sure-table .db-cell, .chart-legend { display: none !important; } }   /* the numbers say the same on a phone */
+.saved-table { max-width: 560px; } .saved-table td { vertical-align: top; }
+.saved-table tr:last-child td { border-bottom: none; border-top: 2px solid var(--line); }
+.chance-table tr.group td { padding-top: 14px; border-bottom: none; }
+.chance-table td:first-child { white-space: nowrap; } .chance-table td:last-child { white-space: normal; }
+.gap.high { color: var(--warn-ink); } .gap.low { color: var(--less); }   /* model's chance above / below what happened */
+.stat-table tr.few .gap { color: inherit; font-weight: 400; }
+.legend .key { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin: 0 4px 0 10px; vertical-align: -1px; }
+.legend .key:first-child { margin-left: 0; }
+.key.good { background: var(--more); } .key.close { background: var(--amber); } .key.bad { background: var(--lost); }
+.key.few { background: var(--muted); opacity: .45; }
+.key.range { width: 12px; height: 12px; border-radius: 0; background: none; border-left: 2px solid var(--muted);
+  border-right: 2px solid var(--muted); vertical-align: -2px; }
+.key.whisker { width: 16px; border-radius: 0; box-sizing: border-box; border-left: 2px solid var(--muted); border-right: 2px solid var(--muted);
+  background: linear-gradient(var(--muted), var(--muted)) center / 100% 2px no-repeat; }
+/* a legend of keys: each one stays whole on a line, and they wrap between keys, never inside one */
+.legend.keys { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin: 4px 0; }
+.legend.keys .li { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.legend.keys .key, .legend.keys .db-key { margin: 0; }
+/* pull to refresh (My entries on a phone): a pill that follows the finger down from the top */
+.ptr { position: fixed; top: 0; left: 50%; z-index: 40; display: flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 99px; font-size: 13px; font-weight: 600; white-space: nowrap;
+  background: var(--card); color: var(--ink); border: 1px solid var(--line); box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+.ptr-icon { display: inline-block; transition: transform .15s; } .ptr-icon.up { transform: rotate(180deg); }
+.ptr-icon.spin { animation: ptr-spin .8s linear infinite; }
+@keyframes ptr-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ptr-icon.spin { animation: none; } }
+.toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg);
+  padding: 10px 16px; border-radius: 10px; font-size: 14px; box-shadow: 0 4px 16px rgba(0,0,0,.2); }
+
+.progress { height: 10px; background: color-mix(in srgb, var(--warn-ink) 18%, transparent); border-radius: 999px;
+  overflow: hidden; margin: 8px 0 6px; }
+.progress .fill { height: 100%; width: 0; background: var(--accent); border-radius: 999px; transition: width 1.4s linear; }
+.muted-on-banner { opacity: .8; }
+
+textarea { width: 100%; font: 14px/1.4 ui-monospace, Consolas, monospace; color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 8px; padding: 10px; resize: vertical; margin: 8px 0; }
+.controls { margin-top: 4px; } label.check { gap: 6px; } label.check input { width: auto; }
+.badge { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 5px; background: var(--chip); color: var(--muted); }
+.badge.w { background: var(--warn-bg); color: var(--warn-ink); }
+.badge.goblin { background: color-mix(in srgb, var(--more) 18%, var(--card)); color: var(--more); font-weight: 600; }
+.badge.demon { background: color-mix(in srgb, var(--less) 18%, var(--card)); color: var(--less); font-weight: 600; }
+.badge.protected { background: color-mix(in srgb, var(--accent) 16%, var(--card)); color: var(--accent); font-weight: 600; vertical-align: 1px; }
+.entry-actions { justify-content: flex-end; margin-top: 6px; } .entry-actions label { color: var(--muted); }
+/* a graded entry's "paid" amount, editable on Results (PrizePicks' payouts change) */
+.paid-view { gap: 6px; }
+.paid-view .typed-in { font-weight: 400; }
+.entry .eh button.small { padding: 2px 9px; font-weight: 500; }
+.paid-edit { font-weight: 400; }
+.paid-edit label { color: var(--ink); font-size: 14px; gap: 4px; }
+.paid-edit input { width: 96px; padding: 4px 8px; }
+.paid-edit .error-text { color: var(--bad-ink); flex-basis: 100%; text-align: right; }
+label.protect { align-self: flex-end; padding-bottom: 8px; }
+/* payouts as PrizePicks shows them before a boost, and with a profit boost what each comes to (→ 8.8x) */
+.boost-input input { width: 110px; }
+.payout-box { display: flex; align-items: center; gap: 6px; }
+.boosted { font-size: 12px; font-weight: 600; color: var(--more); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.badge.boost { background: color-mix(in srgb, var(--more) 16%, var(--card)); color: var(--more); font-weight: 600; vertical-align: 1px; }
+.badge.now { background: color-mix(in srgb, var(--accent) 16%, var(--card)); color: var(--accent); font-weight: 600; margin-left: 4px; }
+/* an open entry's Payouts editor (EntryCard → Payouts.tsx) */
+.payouts-edit { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 10px; }
+.payouts-edit > .row:first-of-type { margin-top: 8px; }
+.payouts-edit .label { margin: 12px 0 4px; }
+.payouts-edit .reverted-row.now .label { color: var(--ink); font-weight: 600; }
+.payouts-edit-actions { margin-top: 14px; }
+.payouts-edit .error-text { color: var(--bad-ink); }
+.badge.trusted { background: color-mix(in srgb, var(--more) 18%, var(--card)); color: var(--more); font-weight: 600; }
+.badge.role-up { background: color-mix(in srgb, var(--accent) 16%, var(--card)); color: var(--accent); font-weight: 600; }   /* starting tonight, usually bench */
+.badge.bad { background: var(--bad-bg); color: var(--bad-ink); font-weight: 600; }   /* inactive tonight */
+.bad-text { color: var(--bad-ink); font-weight: 600; }
+[data-tip] { cursor: help; }
+.hint { border-bottom: 1px dotted currentColor; }
+#tip { position: fixed; z-index: 50; max-width: 340px; padding: 10px 12px; border-radius: 8px; font-size: 13px; line-height: 1.45;
+  white-space: pre-line; background: var(--ink); color: var(--bg); box-shadow: 0 6px 24px rgba(0, 0, 0, .25); pointer-events: none; }
+.brow { display: grid; grid-template-columns: 28px 1fr 64px 120px auto; gap: 10px; align-items: center;
+  border-top: 1px solid var(--line); padding: 10px 8px; margin: 0 -8px; border-radius: 8px; }
+/* a line that's already on the entry slip */
+.brow.added, .res.added { background: var(--added-bg); box-shadow: inset 4px 0 0 var(--more); }
+.res.added { border-color: var(--more); }
+.brow .badd { display: flex; flex-direction: column; gap: 4px; }
+/* each Best lines row opens to the details a Check lines card shows (chevron turns like the Results fold) */
+details.bline { margin: 0; }
+.bline > summary { list-style: none; color: var(--ink); font-size: 15px; }
+.bline > summary::-webkit-details-marker { display: none; }
+.bline > summary:not(.added):hover, .bline[open] > summary:not(.added) { background: var(--chip); }
+.bline[open] > summary { border-radius: 8px 8px 0 0; }
+.chev { display: inline-block; width: 6px; height: 6px; margin: 0 4px 3px 8px; vertical-align: middle;
+  border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-45deg); transition: transform .15s; }
+.bline[open] .chev { transform: rotate(45deg); margin-bottom: 5px; }
+.bline > summary:hover .chev { border-color: var(--accent); }
+/* same -8px bleed as the row; 46px lines the text up with the player's name */
+.bdetail { margin: 0 -8px; padding: 8px 8px 14px 46px; border-radius: 0 0 8px 8px;
+  background: color-mix(in srgb, var(--chip) 45%, var(--card)); }
+.bdetail .label { margin: 10px 0 0; }
+.bdetail .reasons { margin-top: 4px; }
+.brow button { min-width: 116px; }
+/* a line you already played in an open entry (amber: the model now favours the other side) */
+.in-entry { font-size: 11px; font-weight: 600; text-align: center; white-space: nowrap; padding: 1px 6px;
+  border-radius: 5px; background: color-mix(in srgb, var(--accent) 14%, var(--card)); color: var(--accent); }
+.in-entry:empty { display: none; }
+.in-entry.against { background: var(--warn-bg); color: var(--warn-ink); }
+.brow button.on { background: var(--more); border-color: var(--more); color: #fff; font-weight: 700; }
+.add button.on { background: var(--more); border-color: var(--more); color: #fff; font-weight: 700; }
+.add button.less.on { background: var(--less); border-color: var(--less); }
+.brow .rank { font-weight: 700; color: var(--muted); text-align: center; }
+.bpick { font-weight: 800; text-align: center; border-radius: 6px; padding: 4px 0; color: #fff; font-size: 13px; }
+.bpick.more { background: var(--more); } .bpick.less { background: var(--less); }
+.bprob { text-align: right; font-variant-numeric: tabular-nums; } .bprob b { font-size: 17px; }
+.pos { color: var(--more); } .neg { color: var(--muted); }
+@media (max-width: 640px) { .brow { grid-template-columns: 24px 1fr auto; } .brow .bpick { width: 56px; justify-self: end; }
+  .brow .bprob { grid-column: 2; text-align: left; } .brow .badd { grid-column: 3; } .brow button { min-width: 104px; }
+  .bdetail { padding-left: 16px; } }
+
+/* saved % -> % now on open entries */
+.chg.up { color: var(--more); }
+.chg.down { color: var(--less); }
+.chg.same { color: var(--muted); font-weight: 600; }

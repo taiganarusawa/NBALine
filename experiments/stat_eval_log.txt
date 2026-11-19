@@ -1,0 +1,14 @@
+Rebounds        dist=nbinom  MAE 1.95 (base 2.00)  Brier 0.2374 (base 0.2453)  calib.err 0.007  RELIABLE  [72s]
+Assists         dist=nbinom  MAE 1.45 (base 1.48)  Brier 0.2361 (base 0.2439)  calib.err 0.013  RELIABLE  [47s]
+3-PT Made       dist=nbinom  MAE 0.97 (base 0.98)  Brier 0.2146 (base 0.2193)  calib.err 0.016  RELIABLE  [56s]
+Steals          dist=nbinom  MAE 0.77 (base 0.79)  Brier 0.2293 (base 0.2379)  calib.err 0.005  RELIABLE  [41s]
+Blocked Shots   dist=nbinom  MAE 0.56 (base 0.55)  Brier 0.1933 (base 0.2002)  calib.err 0.011  RELIABLE  [57s]
+Turnovers       dist=nbinom  MAE 0.95 (base 0.98)  Brier 0.2307 (base 0.2405)  calib.err 0.006  RELIABLE  [61s]
+Pts+Rebs+Asts   dist=hetero  MAE 6.19 (base 6.45)  Brier 0.2366 (base 0.2490)  calib.err 0.006  RELIABLE  [94s]
+Pts+Rebs        dist=hetero  MAE 5.72 (base 5.92)  Brier 0.2376 (base 0.2486)  calib.err 0.008  RELIABLE  [92s]
+Pts+Asts        dist=hetero  MAE 5.29 (base 5.49)  Brier 0.2373 (base 0.2489)  calib.err 0.008  RELIABLE  [101s]
+Rebs+Asts       dist=nbinom  MAE 2.69 (base 2.77)  Brier 0.2388 (base 0.2478)  calib.err 0.011  RELIABLE  [77s]
+Blks+Stls       dist=nbinom  MAE 0.98 (base 1.01)  Brier 0.2308 (base 0.2387)  calib.err 0.007  RELIABLE  [51s]
+Fantasy Score   dist=hetero  MAE 7.88 (base 8.20)  Brier 0.2375 (base 0.2490)  calib.err 0.012  RELIABLE  [51s]
+
+Saved experiments/stat_models.csv

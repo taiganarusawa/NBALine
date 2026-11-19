@@ -1,0 +1,45 @@
+C:\Users\tiger\Desktop\Workspace\NBALine\tune.py:39: UserWarning: Fixed parameter learning_rate with value 0.03 is out of range for distribution FloatDistribution(high=0.15, log=True, low=0.05, step=None).
+  learning_rate=trial.suggest_float("learning_rate", 0.05, 0.15, log=True),  # fast while searching
+  trial   0: CRPS 3.5070  (best 3.5070)
+  trial   1: CRPS 3.5116  (best 3.5070)
+  trial   2: CRPS 3.5102  (best 3.5070)
+  trial   3: CRPS 3.5087  (best 3.5070)
+  trial   4: CRPS 3.5073  (best 3.5070)
+  trial   5: CRPS 3.5090  (best 3.5070)
+  trial   6: CRPS 3.5075  (best 3.5070)
+  trial   7: CRPS 3.5005  (best 3.5070)
+  trial   8: CRPS 3.5093  (best 3.5070)
+  trial   9: CRPS 3.4961  (best 3.5070)
+  trial  10: CRPS 3.4982  (best 3.5070)
+  trial  11: CRPS 3.4960  (best 3.5070)
+  trial  12: CRPS 3.5076  (best 3.5070)
+  trial  13: CRPS 3.4973  (best 3.5070)
+  trial  14: CRPS 3.5076  (best 3.5070)
+  trial  15: CRPS 3.4950  (best 3.5070)
+  trial  16: CRPS 3.5063  (best 3.5063)
+  trial  17: CRPS 3.4978  (best 3.5063)
+  trial  18: CRPS 3.5071  (best 3.5063)
+  trial  19: CRPS 3.4942  (best 3.5063)
+  trial  20: CRPS 3.4943  (best 3.5063)
+  trial  21: CRPS 3.4976  (best 3.5063)
+  trial  22: CRPS 3.4963  (best 3.5063)
+  trial  23: CRPS 3.4942  (best 3.5063)
+  trial  24: CRPS 3.4991  (best 3.5063)
+  trial  25: CRPS 3.5072  (best 3.5063)
+  trial  26: CRPS 3.4948  (best 3.5063)
+  trial  27: CRPS 3.4935  (best 3.5063)
+  trial  28: CRPS 3.4956  (best 3.5063)
+  trial  29: CRPS 3.4936  (best 3.5063)
+
+Best CRPS 3.5063 (defaults: 3.5070)
+{
+  "learning_rate": 0.05045795023087659,
+  "max_depth": 5,
+  "min_child_weight": 4.325060769684913,
+  "subsample": 0.7802391126145799,
+  "colsample_bytree": 0.520320855006817,
+  "reg_lambda": 0.03620178863630295,
+  "reg_alpha": 0.6065566368945359,
+  "gamma": 0.8702046257913445,
+  "max_delta_step": 1.34823189470834
+}
