@@ -97,8 +97,6 @@ at 54.2% or more, at the chance it would have shown that night. Hover for its li
 It shows the average chance, the return per $1 at the standard payouts (25x / 2x / 0.4x), and the
 chance of a profit.
 
-- **Copy** puts a plain list on the clipboard, like `1. Jalen Smith (CHI) · Rebs+Asts · LESS 11.5`,
-  to follow while you build the entry on PrizePicks.
 - **Put on my slip** replaces your entry slip with the lineup, so you can save it in My entries once
   it's played.
 

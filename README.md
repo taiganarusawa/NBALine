@@ -33,7 +33,7 @@ The web app has five tabs:
 
 | Tab | What you do there |
 |---|---|
-| **Best lines** | Paste the PrizePicks board and get the top 10 picks for your entry type, plus ready-to-copy lineups: a 6-pick Flex of standard lines, a safer Goblin Power or a high-risk Demon Power |
+| **Best lines** | Paste the PrizePicks board and get the top 10 picks for your entry type, plus lineups to play: a 6-pick Flex of standard lines, a safer Goblin Power or a high-risk Demon Power |
 | **Check lines** | Look up any player, stat and line |
 | **My entries** | Build a slip, save what you played, and follow it live during the games |
 | **Results** | Your record and profit, and how the model did against PrizePicks |

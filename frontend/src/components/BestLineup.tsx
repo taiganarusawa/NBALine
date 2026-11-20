@@ -1,12 +1,11 @@
 // Best lines › Best lineup: the entry to play from a pasted board (nbaline/pickem/lineup.py), in three
-// options: standard lines (a Flex), safer (a Power of Goblins) and high risk (a Power of Demons). Copy
-// gives a plain list to follow while building the entry on PrizePicks; "Put on my slip" loads it onto
-// the entry slip, so it can be saved in My entries once it's played. Standard picks show how their
-// stat's lines like these have done (calibration.stat_records); Goblins and Demons show how lines of
-// their kind have done (calibration.line_type_record).
+// options: standard lines (a Flex), safer (a Power of Goblins) and high risk (a Power of Demons). "Put
+// on my slip" loads it onto the entry slip, so it can be saved in My entries once it's played.
+// Standard picks show how their stat's lines like these have done (calibration.stat_records); Goblins
+// and Demons show how lines of their kind have done (calibration.line_type_record).
 import { useApp } from "../context/AppContext";
 import { useSlip } from "../context/SlipContext";
-import { dayName, pct, plural } from "../format";
+import { pct, plural } from "../format";
 import { useKept } from "../kept";
 import { tipProps } from "../labels";
 import type { BoardResult, LineRecord, LineResult, LineTypeRecord, Lineup } from "../types";
@@ -24,32 +23,8 @@ const OPTIONS: { value: Lineup["key"]; label: string; title: string }[] = [
 const sideWord = (x: LineResult) => (x.side === "more" ? "MORE" : "LESS");
 const kindName = (l: Lineup) => (l.kind === "power" ? "Power" : "Flex");
 const entryName = (l: Lineup) => `${l.size}-pick ${kindName(l)}`;
-const lineKind = (x: LineResult) => (x.line_type === "goblin" ? " Goblin" : x.line_type === "demon" ? " Demon" : "");
 const LINE_WORD: Record<Lineup["key"], string> = { standard: "standard line", goblin: "Goblin", demon: "Demon" };
 const kindPlural = (l: Lineup) => `${LINE_WORD[l.key]}s`;
-
-/** The lineup as plain text, one pick per line: "1. Jalen Brunson (NYK) · Assists · MORE 6.5". */
-export function lineupText(l: Lineup, date: string): string {
-  return [`${entryName(l)} · ${dayName(date)}`,
-    ...l.picks.map((x, i) => `${i + 1}. ${x.player} (${x.team}) · ${x.stat} · ${sideWord(x)} ${x.line}${lineKind(x)}`)].join("\n");
-}
-
-/** Copy to the clipboard, falling back to a hidden text box where the clipboard API isn't allowed. */
-async function copyText(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    const box = document.createElement("textarea");
-    box.value = text;
-    box.style.cssText = "position: fixed; opacity: 0";
-    document.body.appendChild(box);
-    box.select();
-    const copied = document.execCommand("copy");
-    box.remove();
-    return copied;
-  }
-}
 
 const VERDICT_TEXT: Record<LineRecord["verdict"], string> = {
   winning: "even its low end is above the break-even",
@@ -69,7 +44,7 @@ export function LosingBadge({ stat, r, atLeast }: { stat: string; r: LineRecord;
 }
 
 /** The Best lineup card: the three options, one shown at a time (the choice is kept). */
-export default function BestLineups({ lineups, date, records }: { lineups: Lineup[]; date: string; records: Records }) {
+export default function BestLineups({ lineups, records }: { lineups: Lineup[]; records: Records }) {
   const [choice, setChoice] = useKept<Lineup["key"]>("board.lineup", "standard");
   const shown = lineups.find((l) => l.key === choice) || lineups[0];
   const options = OPTIONS.filter((o) => lineups.some((l) => l.key === o.value));
@@ -86,13 +61,13 @@ export default function BestLineups({ lineups, date, records }: { lineups: Lineu
       {options.length > 1 && (
         <Seg small label="Which lineup" value={shown.key} onChange={setChoice} options={options} />
       )}
-      <LineupBody key={shown.key} l={shown} date={date} records={shown.key === "standard" ? records : undefined} />
+      <LineupBody key={shown.key} l={shown} records={shown.key === "standard" ? records : undefined} />
     </div>
   );
 }
 
-function LineupBody({ l, date, records }: { l: Lineup; date: string; records: Records }) {
-  const { meta, toast } = useApp();
+function LineupBody({ l, records }: { l: Lineup; records: Records }) {
+  const { meta } = useApp();
   const { loadLineup } = useSlip();
   const losing = Object.entries(l.losing || {});
   const leftOut = losing.length > 0 && (
@@ -113,9 +88,6 @@ function LineupBody({ l, date, records }: { l: Lineup; date: string; records: Re
     );
   }
 
-  async function copy() {
-    toast(await copyText(lineupText(l, date)) ? "Copied the lineup" : "Couldn't copy here: select the picks and copy them instead");
-  }
   const table = meta.payouts[l.kind]?.[String(l.size)] || {};
   const standardPay = table[String(l.size)];
 
@@ -136,12 +108,9 @@ function LineupBody({ l, date, records }: { l: Lineup; date: string; records: Re
             {standardPay != null && <span className="muted"> (standard {standardPay}x)</span>}
           </span>
         )}
-        <span className="row gap">
-          <button className="primary" onClick={copy}>Copy</button>
-          <button className="ghost" title="Replace your entry slip with this lineup" onClick={() => loadLineup(l.picks, l.kind)}>
-            Put on my slip
-          </button>
-        </span>
+        <button className="primary" title="Replace your entry slip with this lineup" onClick={() => loadLineup(l.picks, l.kind)}>
+          Put on my slip
+        </button>
       </div>
       {leftOut}
       {record}

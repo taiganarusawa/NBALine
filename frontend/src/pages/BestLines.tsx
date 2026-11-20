@@ -106,7 +106,7 @@ function Board({ board, wellTestedOnly }: { board: BoardResult; wellTestedOnly: 
   return (
     <>
       {board.date_note && <div className="note">{board.date_note}</div>}
-      {board.lineups?.length ? <BestLineups lineups={board.lineups} date={board.date} records={board.stat_records} /> : null}
+      {board.lineups?.length ? <BestLineups lineups={board.lineups} records={board.stat_records} /> : null}
       <div className="card">
         <div className="row between wrap">
           <h2>Top {SHOW_FIRST} for a {board.target}</h2>
