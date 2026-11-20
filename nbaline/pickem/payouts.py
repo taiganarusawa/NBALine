@@ -33,13 +33,13 @@ DEFAULT_PAYOUTS = {
 }
 
 # What a lineup pays when players revert: picks left -> picks that hit -> multiplier.
-# Flex: from PrizePicks' reverted-payout table for a 6-pick Flex (November 2026), so a single pick left
-# still pays 1.5x if it hits. Power: the smaller Power payout, and a single pick left is refunded (not
-# yet checked against PrizePicks' table). All reverted: refunded.
+# Flex: from PrizePicks' reverted-payout table for a 6-pick Flex (November 2026). Power: the smaller
+# Power payout. Either way a single pick left still pays 1.5x if it hits (a 2-pick Power with one
+# pick reverted pays 1.5x, as PrizePicks shows it). All reverted: refunded.
 REVERTED_PAYOUTS = {
     "flex": {"5": {"5": 10, "4": 2, "3": 0.4}, "4": {"4": 6, "3": 1.5}, "3": {"3": 3, "2": 1},
              "2": {"2": 3}, "1": {"1": 1.5}},
-    "power": {"5": {"5": 20}, "4": {"4": 10}, "3": {"3": 5}, "2": {"2": 3}},
+    "power": {"5": {"5": 20}, "4": {"4": 10}, "3": {"3": 5}, "2": {"2": 3}, "1": {"1": 1.5}},
 }
 
 # The entry you plan to play -> (label, kind, picks). Best lines ranks a board against its break-even.

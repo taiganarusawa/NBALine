@@ -234,6 +234,8 @@ For a 6-pick Flex:
 | 1 | 1.5x |
 | none | refund |
 
+- A Power pays the smaller Power payout for the picks left. With one pick left it pays 1.5x if it
+  hits, so a 2-pick Power with one revert pays 1.5x, not a refund.
 - The slip shows this table under **If players revert**, editable like the payouts. Goblins and
   Demons change it.
 - **If PrizePicks paid a different amount,** press **Edit** on that graded entry and type what it paid.
