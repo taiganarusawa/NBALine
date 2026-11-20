@@ -78,8 +78,18 @@ On top of the list, NBALine builds the entry to play: a **6-pick Flex of standar
 - One pick per player, since all of a player's lines rise and fall with his minutes.
 - At most 2 picks from one game. On a small slate it allows more, rather than leave the lineup short.
 - Only well-tested stats, and no player who is inactive or questionable tonight.
+- No stat whose lines like these have clearly lost (below).
 - With only 5 such lines it's a 5-pick Flex (54.3%). With fewer there's no lineup that night, and the
   card lists the few that clear.
+
+**Each stat's record.** Under every pick: how that stat's graded lines did when the page showed them
+at 54.2% or more, at the chance it would have shown that night. Hover for its likely range.
+
+- **Red**: clearly losing, even the high end of its range is under 54.2%. The stat is left out of the
+  lineup, and its lines in the list below get a **⚠ Losing record** badge.
+- **Green**: clearly winning, even the low end is above 54.2%.
+- **Grey**: too close or too few to tell. In November 2026 every stat was here: Points, for one, was
+  right 60.6% of 71 lines, but its range ran from 49% to 72%.
 
 It shows the average chance, the return per $1 at the standard payouts (25x / 2x / 0.4x), and the
 chance of a profit.

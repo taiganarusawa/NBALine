@@ -112,6 +112,20 @@ export interface BoardResult {
   other: LineResult[];
   /** The lineups to play from this board (lineup.py). Missing on a board ranked before they existed. */
   lineups?: Lineup[];
+  /** Each stat's record on lines like a lineup's: shown at `at_least` or more (calibration.stat_records). */
+  stat_records?: { at_least: number; stats: Record<string, LineRecord> };
+}
+
+/** How a stat's graded lines that the page showed at the break-even or more went. verdict: "few" (too
+ *  few lines to tell), "losing" / "winning" (even the high / low end of the likely range is under /
+ *  at or above the break-even), else "unclear". */
+export interface LineRecord {
+  lines: number;
+  right: number;
+  rate: number;
+  low: number;
+  high: number;
+  verdict: "few" | "losing" | "winning" | "unclear";
 }
 
 /** A lineup built from a board's ranked lines (nbaline/pickem/lineup.py). */
@@ -126,6 +140,8 @@ export interface Lineup {
   /** Lines that qualify, and how many different players they cover. */
   candidates: number;
   players: number;
+  /** Stats left out for a losing record -> how many of tonight's lines that was. */
+  losing?: Record<string, number>;
   break_even: number;
   avg_chance: number | null;
   /** At the standard payouts: return per $1, chance of a profit, chance every pick hits. */

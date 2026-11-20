@@ -7,6 +7,9 @@ The standard lineup is a 6-pick Flex of standard lines, best chance first, where
     adjustment is on),
   * is from a well-tested stat, for a player who isn't inactive or questionable tonight (if he sits,
     the pick reverts and the entry pays less),
+  * is from a stat whose lines like these haven't clearly lost against PrizePicks (its record on lines
+    shown at the break-even or more, calibration.stat_records: even the high end of its likely range
+    under the break-even),
   * is the only pick for that player, since all of one player's lines rise and fall with his minutes,
   * and is one of at most MAX_PER_GAME picks from the same game (players in one game move together a
     little: pace, blowouts). On a small slate that can leave the lineup short: then one more per game
@@ -21,6 +24,7 @@ from collections import Counter
 from . import payouts
 
 SIZES = (6, 5)          # a 6-pick Flex, or a 5-pick Flex when only 5 lines qualify
+RECORD_ENTRY = ("flex", 6)   # stats' records are on lines shown at this entry's break-even or more
 MAX_PER_GAME = 2
 UNSURE = ("Questionable",)   # Out and Doubtful never reach the ranked list
 
@@ -61,13 +65,19 @@ def fill(pool: list[dict], size: int) -> list[dict]:
     return picks
 
 
-def standard_lineup(ranked: list[dict]) -> dict:
-    """The standard lineup for a board's ranked standard lines (ranking.rank_board's "ranked").
+def standard_lineup(ranked: list[dict], records: dict[str, dict]) -> dict:
+    """The standard lineup for a board's ranked standard lines (ranking.rank_board's "ranked"), with
+    each stat's record on lines like these (calibration.stat_records).
         size:       6 or 5 (a 6- or 5-pick Flex), or None when too few lines qualify
         picks:      the lineup's lines, best first (when size is None: the few that clear 6 picks' break-even)
         candidates: how many lines clear that entry's break-even; players: how many players they cover
+        losing:     stats left out for a losing record, with how many of tonight's lines that was
         break_even, avg_chance, and at the standard payouts: ev (return per $1), p_profit, p_all"""
+    losing = {stat for stat, r in records.items() if r["verdict"] == "losing"}
     usable = [r for r in ranked if playable(r)]
+    left_out = Counter(r["stat"] for r in usable
+                       if r["stat"] in losing and r["p_best"] >= payouts.break_even("flex", SIZES[0]))
+    usable = [r for r in usable if r["stat"] not in losing]
     for size in SIZES:
         break_even = payouts.break_even("flex", size)
         pool = [r for r in usable if r["p_best"] >= break_even]
@@ -79,14 +89,14 @@ def standard_lineup(ranked: list[dict]) -> dict:
         pool = [r for r in usable if r["p_best"] >= break_even]
         picks = fill(pool, SIZES[0])
     out = dict(key="standard", title="Standard lines", kind="flex", size=size, picks=picks,
-               candidates=len(pool), players=len({r["player_id"] for r in pool}), break_even=break_even,
-               avg_chance=sum(r["p_best"] for r in picks) / len(picks) if picks else None)
+               candidates=len(pool), players=len({r["player_id"] for r in pool}), losing=dict(left_out),
+               break_even=break_even, avg_chance=sum(r["p_best"] for r in picks) / len(picks) if picks else None)
     if size:
         odds = payouts.entry_odds([r["p_best"] for r in picks], "flex")
         out.update(ev=odds["ev"], p_profit=odds["p_profit"], p_all=odds["p_all"])
     return out
 
 
-def lineups(ranked: list[dict]) -> list[dict]:
+def lineups(ranked: list[dict], records: dict[str, dict]) -> list[dict]:
     """Every lineup the Best lines page offers for this board."""
-    return [standard_lineup(ranked)]
+    return [standard_lineup(ranked, records)]

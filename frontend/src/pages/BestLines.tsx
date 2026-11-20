@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, messageOf, post } from "../api";
 import { LessTestedBadge, LineTypeBadge, RoleBadge, StatusBadge } from "../components/Badges";
-import BestLineup from "../components/BestLineup";
+import BestLineup, { LosingBadge } from "../components/BestLineup";
 import { Injuries, ReasonList, RecentGames, TypicalRange } from "../components/LineDetails";
 import { LiveBox, useLiveLines } from "../components/Live";
 import Seg from "../components/Seg";
@@ -106,7 +106,7 @@ function Board({ board, wellTestedOnly }: { board: BoardResult; wellTestedOnly: 
   return (
     <>
       {board.date_note && <div className="note">{board.date_note}</div>}
-      {board.lineups?.map((l) => <BestLineup key={l.key} lineup={l} date={board.date} />)}
+      {board.lineups?.map((l) => <BestLineup key={l.key} lineup={l} date={board.date} records={board.stat_records} />)}
       <div className="card">
         <div className="row between wrap">
           <h2>Top {SHOW_FIRST} for a {board.target}</h2>
@@ -115,7 +115,8 @@ function Board({ board, wellTestedOnly }: { board: BoardResult; wellTestedOnly: 
           </span>
         </div>
         {ranked.length
-          ? <ShowInSteps items={ranked} step={SHOW_FIRST} render={(x, i) => <BoardRow x={x} rank={i + 1} entered={entered} />} />
+          ? <ShowInSteps items={ranked} step={SHOW_FIRST}
+              render={(x, i) => <BoardRow x={x} rank={i + 1} entered={entered} records={board.stat_records} />} />
           : <div className="empty">No lines could be ranked.</div>}
         <p className="muted small">Model % is its chance the pick hits. Only picks above the break-even help you long-term,
           and two picks from the same game tend to move together.</p>
@@ -197,8 +198,11 @@ function useEnteredLines(date: string): Entered {
 
 /** One ranked line: who, the line, the model's pick and chance, and the + Add button. Clicking the row
  *  opens the same details a Check lines card shows (built the first time it's opened: a full board has
- *  hundreds of rows). */
-function BoardRow({ x, rank, entered }: { x: LineResult; rank: number; entered: Entered }) {
+ *  hundreds of rows). `records`: each stat's record on lines like the lineup's, for the losing-record badge. */
+function BoardRow({ x, rank, entered, records }: {
+  x: LineResult; rank: number; entered: Entered; records?: BoardResult["stat_records"];
+}) {
+  const record = records?.stats[x.stat];
   const { pickFor, togglePick } = useSlip();
   const [open, setOpen] = useState(false);
   const pick = pickFor(x);
@@ -218,6 +222,7 @@ function BoardRow({ x, rank, entered }: { x: LineResult; rank: number; entered: 
             <LineTypeBadge lineType={x.line_type} hint={x.line_hint} />{" "}
             {!x.reliable && <><LessTestedBadge lowMinutes={x.low_minutes} />{" "}</>}
             {x.self_status && <><StatusBadge status={x.self_status} />{" "}</>}
+            {record?.verdict === "losing" && <><LosingBadge stat={x.stat} r={record} atLeast={records!.at_least} />{" "}</>}
             <RoleBadge r={x} />{" "}
             {!x.injury_report && <span className="badge w" {...tipProps(TIPS.injuriesGuessed)}>injuries guessed</span>}
           </div>

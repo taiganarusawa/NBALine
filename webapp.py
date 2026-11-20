@@ -184,8 +184,12 @@ def rank_board():
         return _error(f"{type(e).__name__}: {e}", 500)
     known_teams = set(lines.box_scores()["TEAM_ABBREVIATION"].unique())
     groups = ranking.rank_board(found, results, break_even, known_teams)
+    # each stat's record on lines like a lineup's (shown at the 6-pick Flex break-even or more)
+    records = calibration.stat_records(payouts.break_even(*lineup.RECORD_ENTRY))
     return jsonify(target=label, break_even=break_even, parsed=len(found), unread=unread,
-                   date=str(day.date()), date_note=date_note, lineups=lineup.lineups(groups["ranked"]), **groups)
+                   date=str(day.date()), date_note=date_note,
+                   stat_records=dict(at_least=payouts.break_even(*lineup.RECORD_ENTRY), stats=records),
+                   lineups=lineup.lineups(groups["ranked"], records), **groups)
 
 
 # ---------------------------------------------------------------- entries
