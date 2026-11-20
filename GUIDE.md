@@ -72,7 +72,10 @@ Pick the entry you plan to play and press **Find the best lines**.
 
 ### Best lineup
 
-On top of the list, NBALine builds the entry to play: a **6-pick Flex of standard lines**.
+On top of the list, NBALine builds the entry to play. The **Standard / Safer / High risk** buttons
+switch between three options, and the one you pick stays chosen.
+
+**Standard: a 6-pick Flex of standard lines.**
 
 - Every pick clears the 6-pick Flex break-even (54.2%), best chance first.
 - One pick per player, since all of a player's lines rise and fall with his minutes.
@@ -98,7 +101,29 @@ chance of a profit.
   to follow while you build the entry on PrizePicks.
 - **Put on my slip** replaces your entry slip with the lineup, so you can save it in My entries once
   it's played.
-- Goblin and Demon lineups (safer, or high risk) may be added later.
+
+**Safer: a 3-pick Power of Goblins.** The best Goblins the model gives 75% or more.
+
+- Up to November 20, 2026, Goblins the model gave 75%+ went over 82% of the time (182 of 222). It
+  said 79%, so its Goblin chances have held up.
+- All 3 hit about half the time. Goblins pay less, though. Your three Goblin-heavy entries
+  worked out to $0.82-0.98 back per $1 at the model's chances.
+
+**High risk: a 3-pick Power of Demons.** The best Demons the model gives 55% or more.
+
+- Demons the model gave 55%+ went over 72% of the time (48 of 67, it said 61%).
+- PrizePicks pays more for Demons, but all 3 have to hit, about 1 time in 4. It's fewer lines
+  than the Goblins, so it's less sure.
+
+Both use the same rules as Standard for who can be in them, but one pick per game, so the chance shown
+for all of them hitting is honest. With only 2 such lines it's a 2-pick Power.
+
+**What's it worth?** PrizePicks publishes no formula for what Goblins and Demons pay. So instead of a
+return, the card shows the least the entry must pay to be worth it at the model's chances. That's 1
+divided by the chance all of them hit: three Goblins at 80% need at least 1.96x. Build it on
+PrizePicks and play it only if the payout it shows is at least that. The card also shows how Goblins
+or Demons like these have done so far. A ⚠ warns when they've hit clearly less often than the model
+said, since then the payout needed is higher than shown.
 
 ### What it handles for you
 

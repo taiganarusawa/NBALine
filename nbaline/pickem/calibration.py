@@ -21,7 +21,9 @@ chance, so the adjustment is learned from the model and never from itself.
 
 The same honest chances give each stat's record on the lines Best lines would put in a lineup
 (stat_records): how often lines it showed at the break-even or more were right, and whether that's
-clearly winning, clearly losing, or too close or too few to tell.
+clearly winning, clearly losing, or too close or too few to tell. Goblins and Demons get a record
+of their own (line_type_record): how often the ones the model gave a chance like the lineup's went over,
+next to the chance it gave them, since their lineups lean on that chance being honest.
 """
 import numpy as np
 import pandas as pd
@@ -48,13 +50,14 @@ def adjust(p_over: float, keep: float) -> float:
     return 0.5 + keep * (p_over - 0.5)
 
 
-def graded_lines() -> pd.DataFrame:
+def graded_lines(line_type: str | None = None) -> pd.DataFrame:
     """Every graded standard 50/50 line, as scored on Results: each player/stat once a night, at the
-    last line seen before tip-off, with the model's own chance (and pushes left out)."""
+    last line seen before tip-off, with the model's own chance (and pushes left out). With a line_type
+    ("goblin" or "demon"): the graded lines of that kind instead."""
     with store.db() as con:
         ck = pd.read_sql("SELECT * FROM checks WHERE result IN ('over', 'under') AND p_over IS NOT NULL", con)
-    ck = ck[~ck["line_type"].isin(store.MORE_ONLY_TYPES) & ~ck["stat"].isin(YES_NO) & (ck["started"] == 0)]
-    return store._last_seen(ck)
+    kind = ck["line_type"] == line_type if line_type else ~ck["line_type"].isin(store.MORE_ONLY_TYPES)
+    return store._last_seen(ck[kind & ~ck["stat"].isin(YES_NO) & (ck["started"] == 0)])
 
 
 def honest_chances(lines: pd.DataFrame) -> pd.Series:
@@ -109,7 +112,7 @@ def status() -> dict:
 def likely_range(rate: float, n: int) -> tuple[float, float]:
     """Where a hit rate over n lines probably really is (95%), as the Results page shows it."""
     margin = 1.96 * np.sqrt(max(rate * (1 - rate), 0.0025) / n)
-    return max(rate - margin, 0.0), min(rate + margin, 1.0)
+    return max(float(rate - margin), 0.0), min(float(rate + margin), 1.0)
 
 
 def stat_records(at_least: float) -> dict[str, dict]:
@@ -135,6 +138,27 @@ def _record(hits: int, n: int, at_least: float) -> dict:
     verdict = ("few" if n < ENOUGH_LINES else "losing" if high < at_least
                else "winning" if low >= at_least else "unclear")
     return dict(lines=n, right=hits, rate=rate, low=low, high=high, verdict=verdict)
+
+
+def line_type_record(line_type: str, at_least: float) -> dict | None:
+    """How graded Goblins or Demons the model gave `at_least` or more for More have done: {lines, right,
+    rate, low, high, said (the model's average chance on them), verdict}, where verdict is "few" (under
+    ENOUGH_LINES lines), "too_sure" (even the high end of the likely range is under what it said),
+    "cautious" (even the low end is over it) or "fair". None with no such lines yet."""
+    graded = _graded()
+    key = ("line_type", line_type, at_least)
+    if key not in graded:
+        lines = graded_lines(line_type)
+        lines = lines[lines["p_over"] >= at_least]
+        if lines.empty:
+            graded[key] = None
+        else:
+            hits, n, said = int((lines["result"] == "over").sum()), len(lines), float(lines["p_over"].mean())
+            low, high = likely_range(hits / n, n)
+            verdict = ("few" if n < ENOUGH_LINES else "too_sure" if high < said
+                       else "cautious" if low > said else "fair")
+            graded[key] = dict(lines=n, right=hits, rate=hits / n, low=low, high=high, said=said, verdict=verdict)
+    return graded[key]
 
 
 def adjust_lines(items: list[dict], line_types: list[str | None]) -> list[dict]:

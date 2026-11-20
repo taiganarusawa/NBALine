@@ -1,22 +1,37 @@
-// Best lines › Best lineup: the entry to play from a pasted board (nbaline/pickem/lineup.py). Copy gives
-// a plain list to follow while building the entry on PrizePicks; "Put on my slip" loads it onto the
-// entry slip, so it can be saved in My entries once it's played. Each pick shows how its stat's lines
-// like these have done against PrizePicks (calibration.stat_records).
+// Best lines › Best lineup: the entry to play from a pasted board (nbaline/pickem/lineup.py), in three
+// options: standard lines (a Flex), safer (a Power of Goblins) and high risk (a Power of Demons). Copy
+// gives a plain list to follow while building the entry on PrizePicks; "Put on my slip" loads it onto
+// the entry slip, so it can be saved in My entries once it's played. Standard picks show how their
+// stat's lines like these have done (calibration.stat_records); Goblins and Demons show how lines of
+// their kind have done (calibration.line_type_record).
 import { useApp } from "../context/AppContext";
 import { useSlip } from "../context/SlipContext";
 import { dayName, pct, plural } from "../format";
+import { useKept } from "../kept";
 import { tipProps } from "../labels";
-import type { BoardResult, LineRecord, LineResult, Lineup } from "../types";
+import type { BoardResult, LineRecord, LineResult, LineTypeRecord, Lineup } from "../types";
+import { LineTypeBadge } from "./Badges";
+import Seg from "./Seg";
 
 type Records = BoardResult["stat_records"];
 
+const OPTIONS: { value: Lineup["key"]; label: string; title: string }[] = [
+  { value: "standard", label: "Standard", title: "A 6-pick Flex of standard lines" },
+  { value: "goblin", label: "Safer", title: "A 3-pick Power of Goblins: hits more often, pays less" },
+  { value: "demon", label: "High risk", title: "A 3-pick Power of Demons: hits less often, pays more" },
+];
+
 const sideWord = (x: LineResult) => (x.side === "more" ? "MORE" : "LESS");
-const entryName = (l: Lineup) => `${l.size}-pick ${l.kind === "power" ? "Power" : "Flex"}`;
+const kindName = (l: Lineup) => (l.kind === "power" ? "Power" : "Flex");
+const entryName = (l: Lineup) => `${l.size}-pick ${kindName(l)}`;
+const lineKind = (x: LineResult) => (x.line_type === "goblin" ? " Goblin" : x.line_type === "demon" ? " Demon" : "");
+const LINE_WORD: Record<Lineup["key"], string> = { standard: "standard line", goblin: "Goblin", demon: "Demon" };
+const kindPlural = (l: Lineup) => `${LINE_WORD[l.key]}s`;
 
 /** The lineup as plain text, one pick per line: "1. Jalen Brunson (NYK) · Assists · MORE 6.5". */
 export function lineupText(l: Lineup, date: string): string {
   return [`${entryName(l)} · ${dayName(date)}`,
-    ...l.picks.map((x, i) => `${i + 1}. ${x.player} (${x.team}) · ${x.stat} · ${sideWord(x)} ${x.line}`)].join("\n");
+    ...l.picks.map((x, i) => `${i + 1}. ${x.player} (${x.team}) · ${x.stat} · ${sideWord(x)} ${x.line}${lineKind(x)}`)].join("\n");
 }
 
 /** Copy to the clipboard, falling back to a hidden text box where the clipboard API isn't allowed. */
@@ -53,46 +68,78 @@ export function LosingBadge({ stat, r, atLeast }: { stat: string; r: LineRecord;
   return <span className="badge bad" {...tipProps(`${recordTip(stat, r, atLeast)} Left out of the Best lineup.`)}>⚠ Losing record</span>;
 }
 
-export default function BestLineup({ lineup: l, date, records }: { lineup: Lineup; date: string; records: Records }) {
+/** The Best lineup card: the three options, one shown at a time (the choice is kept). */
+export default function BestLineups({ lineups, date, records }: { lineups: Lineup[]; date: string; records: Records }) {
+  const [choice, setChoice] = useKept<Lineup["key"]>("board.lineup", "standard");
+  const shown = lineups.find((l) => l.key === choice) || lineups[0];
+  const options = OPTIONS.filter((o) => lineups.some((l) => l.key === o.value));
+  return (
+    <div className="card lineup">
+      <div className="row between wrap">
+        <h2>Best lineup{shown.size ? ` · ${entryName(shown)}` : ""}{shown.priced ? "" : ` of ${kindPlural(shown)}`}</h2>
+        <span className="muted small">
+          {plural(shown.candidates, LINE_WORD[shown.key])}{" "}
+          {shown.priced ? (shown.candidates === 1 ? "clears" : "clear") : (shown.candidates === 1 ? "has" : "have")} {pct(shown.at_least)}{" "}
+          ({plural(shown.players, "player")})
+        </span>
+      </div>
+      {options.length > 1 && (
+        <Seg small label="Which lineup" value={shown.key} onChange={setChoice} options={options} />
+      )}
+      <LineupBody key={shown.key} l={shown} date={date} records={shown.key === "standard" ? records : undefined} />
+    </div>
+  );
+}
+
+function LineupBody({ l, date, records }: { l: Lineup; date: string; records: Records }) {
   const { meta, toast } = useApp();
   const { loadLineup } = useSlip();
-  const qualify = `${plural(l.candidates, "standard line")} clear ${pct(l.break_even)} (${plural(l.players, "player")})`;
   const losing = Object.entries(l.losing || {});
   const leftOut = losing.length > 0 && (
     <p className="small warn-text">⚠ Left out for a losing record on lines like these:{" "}
       {losing.map(([stat, n]) => `${stat} (${plural(n, "line")} tonight)`).join(", ")}.</p>
   );
+  const record = l.record !== undefined && <KindRecord l={l} />;
 
   if (!l.size) {
+    const why = l.priced
+      ? `a weaker pick would pull the whole entry below the ${pct(l.at_least)} break-even`
+      : `fewer than ${l.sizes[l.sizes.length - 1]} ${kindPlural(l)} on this board have ${pct(l.at_least)} or more from different players`;
     return (
-      <div className="card lineup">
-        <div className="row between wrap"><h2>Best lineup</h2><span className="muted small">{qualify}</span></div>
-        <p className="small">Not enough for a 6- or 5-pick Flex tonight: a weaker pick would pull the whole entry below
-          the {pct(l.break_even)} break-even.{l.picks.length > 0 && " The ones that clear it:"}</p>
+      <>
+        <p className="small">Not enough for a {l.sizes.join("- or ")}-pick {kindName(l)} tonight: {why}.
+          {l.picks.length > 0 && ` The ${l.picks.length === 1 ? "one that qualifies" : "ones that qualify"}:`}</p>
         {l.picks.length > 0 && <LineupPicks picks={l.picks} records={records} />}
         {leftOut}
-      </div>
+        {record}
+      </>
     );
   }
 
-  const table = meta.payouts[l.kind]?.[String(l.size)] || {};
-  const paysAt = Object.entries(table).sort(([a], [b]) => Number(b) - Number(a)).map(([, m]) => `${m}x`).join(" / ");
   async function copy() {
     toast(await copyText(lineupText(l, date)) ? "Copied the lineup" : "Couldn't copy here: select the picks and copy them instead");
   }
+  const table = meta.payouts[l.kind]?.[String(l.size)] || {};
+  const standardPay = table[String(l.size)];
 
   return (
-    <div className="card lineup">
-      <div className="row between wrap">
-        <h2>Best lineup · {entryName(l)}</h2>
-        <span className="muted small">{l.title} · {qualify}</span>
-      </div>
+    <>
       <LineupPicks picks={l.picks} records={records} />
       <div className="row between wrap gap lineup-sum">
-        <span className="small">
-          Average <b>{pct(l.avg_chance)}</b> per pick · returns <b>${l.ev!.toFixed(2)}</b> per $1 at the standard
-          payouts ({paysAt}) · chance of a profit {pct(l.p_profit)} · all {l.size} hit {pct(l.p_all)}
-        </span>
+        {l.priced ? (
+          <span className="small">
+            Average <b>{pct(l.avg_chance)}</b> per pick · returns <b>${l.ev!.toFixed(2)}</b> per $1 at the standard
+            payouts ({Object.entries(table).sort(([a], [b]) => Number(b) - Number(a)).map(([, m]) => `${m}x`).join(" / ")})
+            · chance of a profit {pct(l.p_profit)} · all {l.size} hit {pct(l.p_all)}
+          </span>
+        ) : (
+          <span className="small">
+            Average <b>{pct(l.avg_chance)}</b> per pick · all {l.size} hit <b>{pct(l.p_all)}</b> · worth playing if PrizePicks
+            pays at least <b>{(Math.ceil(l.min_payout! * 100) / 100).toFixed(2)}x</b>
+            {standardPay != null && <span className="muted"> (a standard {entryName(l)} pays {standardPay}x; {kindPlural(l)}
+              {l.key === "goblin" ? " lower that" : " raise that"})</span>}
+          </span>
+        )}
         <span className="row gap">
           <button className="primary" onClick={copy}>Copy</button>
           <button className="ghost" title="Replace your entry slip with this lineup" onClick={() => loadLineup(l.picks, l.kind)}>
@@ -101,12 +148,49 @@ export default function BestLineup({ lineup: l, date, records }: { lineup: Lineu
         </span>
       </div>
       {leftOut}
-      <p className="muted small">Standard lines only, best chance first, each at or above the {pct(l.break_even)} break-even, from
-        well-tested stats: one pick per player and at most 2 from one game. Players inactive or questionable tonight are left out,
-        and so are stats whose lines like these have clearly lost. Under each pick: how its stat's lines shown at{" "}
-        {pct(records?.at_least)} or more have done. Check that nobody's been ruled out before you enter it, and save it in
-        My entries once it's played.</p>
-    </div>
+      {record}
+      <p className="muted small">{DESCRIPTION[l.key](l, records)} Check that nobody's been ruled out before you enter it, and
+        save it in My entries once it's played{l.priced ? "" : ", with the payout PrizePicks showed"}.</p>
+    </>
+  );
+}
+
+const DESCRIPTION: Record<Lineup["key"], (l: Lineup, records: Records) => string> = {
+  standard: (l, records) =>
+    `Standard lines only, best chance first, each at or above the ${pct(l.at_least)} break-even, from well-tested stats: one pick
+    per player and at most 2 from one game. Players inactive or questionable tonight are left out, and so are stats whose lines
+    like these have clearly lost. Under each pick: how its stat's lines shown at ${pct(records?.at_least)} or more have done.`,
+  goblin: (l) =>
+    `Goblins only, the best ones the model gives ${pct(l.at_least)} or more for More: one per player and one per game, from
+    well-tested stats, leaving out players inactive or questionable tonight. Goblins are easier lines, so this hits more often
+    than a standard entry, but PrizePicks pays less for them, by an amount that depends on the line. Build it on PrizePicks and
+    play it only if the payout it shows for all ${l.size} is at least the one above.`,
+  demon: (l) =>
+    `Demons only, the best ones the model gives ${pct(l.at_least)} or more for More: one per player and one per game, from
+    well-tested stats, leaving out players inactive or questionable tonight. PrizePicks pays more for Demons, but every pick
+    has to hit, so most nights this loses and the wins pay big. The record above is on fewer lines than the Goblins', so it's
+    less sure. Play it only if the payout PrizePicks shows for all ${l.size} is at least the one above.`,
+};
+
+const KIND_VERDICT: Record<LineTypeRecord["verdict"], string> = {
+  fair: "not clearly more or less often than the model said",
+  cautious: "more often than the model said",
+  too_sure: "less often than the model said, so the payout this needs is likely higher than shown",
+  few: "too few lines to tell yet",
+};
+
+/** "Goblins the model gave 75% or more: 182 of 222 went over (82.0%) …": how lines of this kind have done. */
+function KindRecord({ l }: { l: Lineup }) {
+  const r = l.record;
+  const what = `${kindPlural(l)} the model gave ${pct(l.at_least)} or more`;
+  if (!r) return <p className="small muted">{what}: none graded yet.</p>;
+  return (
+    <p className={`small ${r.verdict === "too_sure" ? "warn-text" : "muted"}`}
+      {...tipProps(`Graded ${kindPlural(l)} from your pasted boards, each player/stat once a night. Likely range `
+        + `${pct(r.low)} to ${pct(r.high)}; the model said ${pct(r.said)} on average.`)}>
+      {r.verdict === "too_sure" ? "⚠ " : ""}So far, {what}: {r.right} of {r.lines} went over ({pct(r.rate)}, it said{" "}
+      {pct(r.said)}), {KIND_VERDICT[r.verdict]}.
+    </p>
   );
 }
 
@@ -119,10 +203,10 @@ function LineupPicks({ picks, records }: { picks: LineResult[]; records: Records
             <span className="muted small">{x.team} {x.home ? "vs" : "@"} {x.opp} · {x.tip_local}</span>
             {records && <RecordNote stat={x.stat} r={records.stats[x.stat]} atLeast={records.at_least} />}
           </span>
-          <span className="lp-stat">{x.stat}</span>
+          <span className="lp-stat">{x.stat}{x.line_type && <> <LineTypeBadge lineType={x.line_type} hint={x.line_hint} /></>}</span>
           <span className={`bpick ${x.side}`}>{sideWord(x)}</span>
           <b className="lp-line">{x.line}</b>
-          <b className="lp-chance" title="Chance this pick hits (as on the list below)">{pct(x.p_best)}</b>
+          <b className="lp-chance" title="Chance this pick hits (as on the lists below)">{pct(x.p_best)}</b>
         </li>
       ))}
     </ol>

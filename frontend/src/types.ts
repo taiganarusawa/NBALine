@@ -128,26 +128,47 @@ export interface LineRecord {
   verdict: "few" | "losing" | "winning" | "unclear";
 }
 
-/** A lineup built from a board's ranked lines (nbaline/pickem/lineup.py). */
+/** How graded Goblins or Demons with a chance like a lineup's did: how often they went over, next to the
+ *  model's average chance on them (`said`). verdict: "few" (too few lines to tell), "too_sure" /
+ *  "cautious" (even the high / low end of the likely range is under / over what it said), else "fair". */
+export interface LineTypeRecord {
+  lines: number;
+  right: number;
+  rate: number;
+  low: number;
+  high: number;
+  said: number;
+  verdict: "few" | "too_sure" | "cautious" | "fair";
+}
+
+/** A lineup built from a board's ranked lines (nbaline/pickem/lineup.py): "standard" (a Flex of
+ *  standard lines), "goblin" (safer) or "demon" (high risk), both a Power. */
 export interface Lineup {
-  key: string;
+  key: "standard" | "goblin" | "demon";
   title: string;
   kind: EntryKind;
-  /** Picks in the entry (6 or 5), or null when too few lines qualify. */
+  /** Picks in the entry (one of `sizes`), or null when too few lines qualify. */
   size: number | null;
+  sizes: number[];
   /** The lineup, best first; when size is null, the few lines that qualify. */
   picks: LineResult[];
-  /** Lines that qualify, and how many different players they cover. */
+  /** The least chance a pick needs (the break-even, for standard lines), the lines that have it, and
+   *  how many different players they cover. */
+  at_least: number;
   candidates: number;
   players: number;
-  /** Stats left out for a losing record -> how many of tonight's lines that was. */
-  losing?: Record<string, number>;
-  break_even: number;
   avg_chance: number | null;
-  /** At the standard payouts: return per $1, chance of a profit, chance every pick hits. */
+  /** Whether it's at the standard payouts (standard lines), so its return can be worked out. */
+  priced: boolean;
+  /** Standard: stats left out for a losing record -> how many of tonight's lines that was. */
+  losing?: Record<string, number>;
+  /** Standard, at the standard payouts: return per $1, chance of a profit. Every one: chance all picks hit. */
   ev?: number;
   p_profit?: number;
   p_all?: number;
+  /** Goblins and Demons: the least PrizePicks must pay for the entry to be worth it, and their record. */
+  min_payout?: number;
+  record?: LineTypeRecord | null;
 }
 
 export type PickResult = "hit" | "miss" | "push" | "void";

@@ -1,11 +1,11 @@
 // Tab 1 · Best lines: paste a PrizePicks board, get the best picks for the entry you plan to play.
-// On top, the lineup to play (BestLineup). Standard lines are ranked by the model's chance of hitting;
+// On top, the lineup to play, in three options (BestLineup). Standard lines are ranked by the model's chance of hitting;
 // More-only lines (Goblins and Demons) get their own list, because they pay differently. Lines whose
 // game has started are followed live.
 import { useEffect, useRef, useState } from "react";
 import { api, messageOf, post } from "../api";
 import { LessTestedBadge, LineTypeBadge, RoleBadge, StatusBadge } from "../components/Badges";
-import BestLineup, { LosingBadge } from "../components/BestLineup";
+import BestLineups, { LosingBadge } from "../components/BestLineup";
 import { Injuries, ReasonList, RecentGames, TypicalRange } from "../components/LineDetails";
 import { LiveBox, useLiveLines } from "../components/Live";
 import Seg from "../components/Seg";
@@ -106,7 +106,7 @@ function Board({ board, wellTestedOnly }: { board: BoardResult; wellTestedOnly: 
   return (
     <>
       {board.date_note && <div className="note">{board.date_note}</div>}
-      {board.lineups?.map((l) => <BestLineup key={l.key} lineup={l} date={board.date} records={board.stat_records} />)}
+      {board.lineups?.length ? <BestLineups lineups={board.lineups} date={board.date} records={board.stat_records} /> : null}
       <div className="card">
         <div className="row between wrap">
           <h2>Top {SHOW_FIRST} for a {board.target}</h2>
