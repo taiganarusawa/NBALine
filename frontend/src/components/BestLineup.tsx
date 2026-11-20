@@ -102,12 +102,9 @@ function LineupBody({ l, date, records }: { l: Lineup; date: string; records: Re
   const record = l.record !== undefined && <KindRecord l={l} />;
 
   if (!l.size) {
-    const why = l.priced
-      ? `a weaker pick would pull the whole entry below the ${pct(l.at_least)} break-even`
-      : `fewer than ${l.sizes[l.sizes.length - 1]} ${kindPlural(l)} on this board have ${pct(l.at_least)} or more from different players`;
     return (
       <>
-        <p className="small">Not enough for a {l.sizes.join("- or ")}-pick {kindName(l)} tonight: {why}.
+        <p className="small">Not enough for a {l.sizes.join("- or ")}-pick {kindName(l)} tonight.
           {l.picks.length > 0 && ` The ${l.picks.length === 1 ? "one that qualifies" : "ones that qualify"}:`}</p>
         {l.picks.length > 0 && <LineupPicks picks={l.picks} records={records} />}
         {leftOut}
@@ -136,8 +133,7 @@ function LineupBody({ l, date, records }: { l: Lineup; date: string; records: Re
           <span className="small">
             Average <b>{pct(l.avg_chance)}</b> per pick · all {l.size} hit <b>{pct(l.p_all)}</b> · worth playing if PrizePicks
             pays at least <b>{(Math.ceil(l.min_payout! * 100) / 100).toFixed(2)}x</b>
-            {standardPay != null && <span className="muted"> (a standard {entryName(l)} pays {standardPay}x; {kindPlural(l)}
-              {l.key === "goblin" ? " lower that" : " raise that"})</span>}
+            {standardPay != null && <span className="muted"> (standard {standardPay}x)</span>}
           </span>
         )}
         <span className="row gap">
@@ -149,47 +145,29 @@ function LineupBody({ l, date, records }: { l: Lineup; date: string; records: Re
       </div>
       {leftOut}
       {record}
-      <p className="muted small">{DESCRIPTION[l.key](l, records)} Check that nobody's been ruled out before you enter it, and
-        save it in My entries once it's played{l.priced ? "" : ", with the payout PrizePicks showed"}.</p>
     </>
   );
 }
 
-const DESCRIPTION: Record<Lineup["key"], (l: Lineup, records: Records) => string> = {
-  standard: (l, records) =>
-    `Standard lines only, best chance first, each at or above the ${pct(l.at_least)} break-even, from well-tested stats: one pick
-    per player and at most 2 from one game. Players inactive or questionable tonight are left out, and so are stats whose lines
-    like these have clearly lost. Under each pick: how its stat's lines shown at ${pct(records?.at_least)} or more have done.`,
-  goblin: (l) =>
-    `Goblins only, the best ones the model gives ${pct(l.at_least)} or more for More: one per player and one per game, from
-    well-tested stats, leaving out players inactive or questionable tonight. Goblins are easier lines, so this hits more often
-    than a standard entry, but PrizePicks pays less for them, by an amount that depends on the line. Build it on PrizePicks and
-    play it only if the payout it shows for all ${l.size} is at least the one above.`,
-  demon: (l) =>
-    `Demons only, the best ones the model gives ${pct(l.at_least)} or more for More: one per player and one per game, from
-    well-tested stats, leaving out players inactive or questionable tonight. PrizePicks pays more for Demons, but every pick
-    has to hit, so most nights this loses and the wins pay big. The record above is on fewer lines than the Goblins', so it's
-    less sure. Play it only if the payout PrizePicks shows for all ${l.size} is at least the one above.`,
-};
-
+/** Added after the record when it says something: the model's chances look off, or it's too early. */
 const KIND_VERDICT: Record<LineTypeRecord["verdict"], string> = {
-  fair: "not clearly more or less often than the model said",
-  cautious: "more often than the model said",
-  too_sure: "less often than the model said, so the payout this needs is likely higher than shown",
-  few: "too few lines to tell yet",
+  fair: "",
+  cautious: "",
+  too_sure: " · hitting less than the model says, so the payout needed is likely higher",
+  few: " · too few to tell yet",
 };
 
-/** "Goblins the model gave 75% or more: 182 of 222 went over (82.0%) …": how lines of this kind have done. */
+/** "Goblins at 75.0%+ so far: 182 of 222 hit (82.0%, model said 78.7%)": how lines of this kind have done. */
 function KindRecord({ l }: { l: Lineup }) {
   const r = l.record;
-  const what = `${kindPlural(l)} the model gave ${pct(l.at_least)} or more`;
-  if (!r) return <p className="small muted">{what}: none graded yet.</p>;
+  const what = `${kindPlural(l)} at ${pct(l.at_least)}+`;
+  if (!r) return <p className="small muted">{what}: none graded yet</p>;
   return (
     <p className={`small ${r.verdict === "too_sure" ? "warn-text" : "muted"}`}
       {...tipProps(`Graded ${kindPlural(l)} from your pasted boards, each player/stat once a night. Likely range `
         + `${pct(r.low)} to ${pct(r.high)}; the model said ${pct(r.said)} on average.`)}>
-      {r.verdict === "too_sure" ? "⚠ " : ""}So far, {what}: {r.right} of {r.lines} went over ({pct(r.rate)}, it said{" "}
-      {pct(r.said)}), {KIND_VERDICT[r.verdict]}.
+      {r.verdict === "too_sure" ? "⚠ " : ""}{what} so far: {r.right} of {r.lines} hit ({pct(r.rate)}, model said {pct(r.said)})
+      {KIND_VERDICT[r.verdict]}
     </p>
   );
 }
