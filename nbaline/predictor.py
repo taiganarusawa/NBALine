@@ -141,8 +141,12 @@ def _injury_info(game, team: str, opp: str, roster: pd.DataFrame, names: pd.Data
 
 # ---------------------------------------------------------------- model inputs
 
+_RESOLVED = ("opp", "home", "game", "self_status", "inj")   # what _resolve adds to a request
+
+
 def _resolve(r, names, team_ids, p, cur, game_date, use_schedule=True, use_injuries=True):
-    """Look up the player, the game, and ruled-out players for one request (raises ValueError)."""
+    """Look up the player, the game, and ruled-out players for one request (raises ValueError).
+    Adds the _RESOLVED fields it finds to the request."""
     pl = find_player(names, r["player"], cur)
     pid, team_id, team = pl["PLAYER_ID"], pl["TEAM_ID"], pl["TEAM_ABBREVIATION"]
     opp, home, game = _match_schedule(r, team, game_date, use_schedule)
@@ -192,12 +196,20 @@ def predict_requests(reqs: list[dict], game_date: pd.Timestamp, use_schedule: bo
     blank = dict(GAME_DATE=game_date, SEASON=cur, SEASON_ID=int(f"2{cur}"))
     new_p, new_t, overrides, resolved, official = {}, {}, {}, [], set()
     lineup = _lineup(game_date)   # who's starting, once the teams' lineups are posted
+    looked_up: dict = {}   # a pasted board has about 10 lines per player: look each player up once
     for r in reqs:
-        try:
-            item = _resolve(r, names, team_ids, p, cur, game_date, use_schedule, use_injuries)
-        except ValueError as e:
-            errors.append((r, str(e)))
+        who = (norm(r["player"]), r.get("opp"), r.get("home"), tuple(r.get("out") or ()))
+        if who not in looked_up:
+            try:
+                item = _resolve(r, names, team_ids, p, cur, game_date, use_schedule, use_injuries)
+                looked_up[who] = (item, {k: r[k] for k in _RESOLVED if k in r})
+            except ValueError as e:
+                looked_up[who] = str(e)
+        if isinstance(looked_up[who], str):
+            errors.append((r, looked_up[who]))
             continue
+        item, found = looked_up[who]
+        r.update(found)
         gid, pid, team_id, opp_id, pl, outs = item
         for tid in (team_id, opp_id):
             new_t[(gid, tid)] = {**blank, "GAME_ID": gid, "TEAM_ID": tid}
@@ -281,13 +293,21 @@ def load_pipeline():
     return _PIPE["pipe"], _PIPE["meta"]
 
 
-def explain(pipe, X: pd.DataFrame, i: int, mu_xgb: float) -> list[tuple]:
-    """Top reasons as (points, label, shown value), from SHAP values of the XGBoost part.
-    For a yes/no stat (double-double) the effect is in percentage points of chance instead."""
+def explain(pipe, X: pd.DataFrame, mu_xgb: np.ndarray) -> list[list[tuple]]:
+    """Each row's top reasons as (points, label, shown value), from SHAP values of the XGBoost part,
+    worked out for all the rows at once. mu_xgb: the XGBoost part's prediction for each row."""
     if pipe.booster is None:
-        return []
+        return [[] for _ in range(len(X))]
     feats = pipe.cfg.features
-    c = pipe.booster.predict(xgb.DMatrix(X[feats].iloc[[i]]), pred_contribs=True)[0][:-1]
+    values = X[feats]
+    contribs = pipe.booster.predict(xgb.DMatrix(values), pred_contribs=True)[:, :-1]   # last column: the bias
+    return [_top_reasons(pipe, values.iloc[i], c, float(mu)) for i, (c, mu) in enumerate(zip(contribs, mu_xgb))]
+
+
+def _top_reasons(pipe, row: pd.Series, c: np.ndarray, mu_xgb: float) -> list[tuple]:
+    """One row's 6 biggest inputs, from its SHAP values c. For a yes/no stat (double-double) the effect
+    is in percentage points of chance instead of the stat's own units."""
+    feats = pipe.cfg.features
     if pipe.cfg.objective in ("count:poisson", "reg:tweedie"):     # log link
         pts = mu_xgb * (1 - np.exp(-c))   # points this input adds vs. an average player
     elif pipe.cfg.objective == "binary:logistic":                   # log-odds
@@ -297,7 +317,7 @@ def explain(pipe, X: pd.DataFrame, i: int, mu_xgb: float) -> list[tuple]:
         pts = c
     out = []
     for j in np.argsort(-np.abs(pts))[:6]:
-        f, v = feats[j], X[feats[j]].iloc[i]
+        f, v = feats[j], row.iloc[j]
         if f in ("HOME", "B2B", "OPP_B2B", "STARTING") and not pd.isna(v):
             shown = "yes" if v else "no"
         else:
@@ -363,9 +383,13 @@ def analyze(reqs: list[dict], game_date: pd.Timestamp, use_schedule=True, use_in
         mu, Q = pipe.predict(Xk)
         _, pov, push = pipe.outcome_chances(Xk, [float(resolved[i]["line"]) for i in idx])
         mx = pipe.booster.predict(xgb.DMatrix(Xk[pipe.cfg.features])) if pipe.booster is not None else mu
+        reasons = explain(pipe, Xk, mx)
         for j, i in enumerate(idx):
             preds[i] = dict(mu=float(mu[j]), Q=Q[j], p=float(pov[j]), push=float(push[j]),
-                            reasons=explain(pipe, Xk, j, float(mx[j])), reliable=bool(info.get("reliable", False)))
+                            reasons=reasons[j], reliable=bool(info.get("reliable", False)))
+    # each player's last 8 games, for the recent results shown with every line
+    played = p[p["PLAYER_ID"].isin({r["pid"] for r in resolved}) & p["PTS"].notna()]
+    last8 = {pid: g for pid, g in played.sort_values("GAME_DATE").groupby("PLAYER_ID").tail(8).groupby("PLAYER_ID")}
     for i, r in enumerate(resolved):
         g, inj = r["game"], r.get("inj")
         gone = details.get(r["gid"], {})
@@ -375,7 +399,7 @@ def analyze(reqs: list[dict], game_date: pd.Timestamp, use_schedule=True, use_in
                  if (team_of.get(q) == r["team_id"]) == mine]
             if o:
                 outs[label] = o
-        hist = p[(p["PLAYER_ID"] == r["pid"]) & p["PTS"].notna()].sort_values("GAME_DATE").tail(8)
+        hist = last8.get(r["pid"], played.iloc[:0])
         vals = sum(w * hist[c] for c, w in F.STAT_KEYS[r["key"]].items())
         low_minutes = not X["MIN_L10"].iloc[i] >= F.MIN_TESTED_MINUTES  # bench player or no history: untested ground
         res = dict(

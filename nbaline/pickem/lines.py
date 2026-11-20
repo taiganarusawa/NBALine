@@ -70,12 +70,17 @@ def players_on(day: pd.Timestamp) -> list[dict]:
     return sorted(out, key=lambda x: (x["team"], x["name"]))
 
 
-def history(player_id: int, stat: str, line: float, before: pd.Timestamp) -> dict:
-    """His last 10 games before `before`: average, and how many went over this line."""
+def last_games(player_ids: set, before: pd.Timestamp, n: int = 10) -> dict[int, list[dict]]:
+    """Each player's last n box scores before `before`, oldest first (one pass over the logs)."""
     p = box_scores()
-    g = p[(p["PLAYER_ID"] == player_id) & p["PTS"].notna() & (p["GAME_DATE"] < before)]
-    g = g.sort_values("GAME_DATE").tail(10)
-    games = [(f"{r['GAME_DATE']:%m/%d}", stat_value(r, stat)) for r in g.to_dict("records")]
+    g = p[p["PLAYER_ID"].isin(player_ids) & p["PTS"].notna() & (p["GAME_DATE"] < before)]
+    g = g.sort_values("GAME_DATE").groupby("PLAYER_ID").tail(n)
+    return {pid: d.to_dict("records") for pid, d in g.groupby("PLAYER_ID")}
+
+
+def history(games: list[dict], stat: str, line: float) -> dict:
+    """From his last 10 games (last_games): average, and how many went over this line."""
+    games = [(f"{r['GAME_DATE']:%m/%d}", stat_value(r, stat)) for r in games]
     games = [(d, v) for d, v in games if v == v]  # skip games without the number yet (dunks: shot chart pending)
     dates, vals = [d for d, _ in games], [v for _, v in games]
     return dict(avg10=round(sum(vals) / len(vals), 1) if vals else None,
@@ -138,14 +143,16 @@ def _model_results(rows: list[dict], day: pd.Timestamp) -> list[dict]:
     requests = [dict(player=r["player"], line=float(r["line"]), stat=r["stat"], opp=None, home=None, out=[])
                 for _, _, r in todo]
     to_save = []
-    for (i, key, r), a in zip(todo, P.analyze(requests, day)):
+    analyzed = P.analyze(requests, day)
+    recent = last_games({a["player_id"] for a in analyzed if not a.get("error")}, day)
+    for (i, key, r), a in zip(todo, analyzed):
         item = dict(player=a["player"], stat=r["stat"], line=float(r["line"]), error=a.get("error"))
         if not a.get("error"):
             item.update({k: a[k] for k in _GAME_FIELDS}, modeled=a["modeled"], reliable=a["reliable"],
                         yes_no=a["yes_no"], low_minutes=a["low_minutes"])
             if a["modeled"]:
                 item.update({k: a[k] for k in _MODEL_FIELDS})
-            item["history"] = history(a["player_id"], r["stat"], float(r["line"]), day)
+            item["history"] = history(recent.get(a["player_id"], []), r["stat"], float(r["line"]))
             item.update(final_result(a, r["stat"], float(r["line"]), day))
             if not a["started"]:  # only real pregame checks count toward the model's record
                 to_save.append(dict(item, p_over=item.get("p_over"), proj=item.get("proj"),
