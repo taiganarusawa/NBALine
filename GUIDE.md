@@ -70,6 +70,26 @@ Pick the entry you plan to play and press **Find the best lines**.
 - You get the **top 10 picks** (More or Less).
 - Each pick shows the model's chance and how far it clears that entry's break-even.
 
+### Best lineup
+
+On top of the list, NBALine builds the entry to play: a **6-pick Flex of standard lines**.
+
+- Every pick clears the 6-pick Flex break-even (54.2%), best chance first.
+- One pick per player, since all of a player's lines rise and fall with his minutes.
+- At most 2 picks from one game. On a small slate it allows more, rather than leave the lineup short.
+- Only well-tested stats, and no player who is inactive or questionable tonight.
+- With only 5 such lines it's a 5-pick Flex (54.3%). With fewer there's no lineup that night, and the
+  card lists the few that clear.
+
+It shows the average chance, the return per $1 at the standard payouts (25x / 2x / 0.4x), and the
+chance of a profit.
+
+- **Copy** puts a plain list on the clipboard, like `1. Jalen Smith (CHI) · Rebs+Asts · LESS 11.5`,
+  to follow while you build the entry on PrizePicks.
+- **Put on my slip** replaces your entry slip with the lineup, so you can save it in My entries once
+  it's played.
+- Goblin and Demon lineups (safer, or high risk) may be added later.
+
 ### What it handles for you
 
 - Each card's team, opponent and game day are read from the page.

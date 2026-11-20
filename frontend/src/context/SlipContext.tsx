@@ -29,6 +29,8 @@ interface SlipState {
   pickFor: (line: { player: string; stat: string; line: number }) => SlipPick | undefined;
   /** What a + More / + Less / + Add button does: add the pick, switch its side, or take it off again. */
   togglePick: (line: LineResult, side: Side) => void;
+  /** Replace the slip with a whole lineup (each line on its own side) and set its entry type. */
+  loadLineup: (lines: LineResult[], kind: EntryKind) => void;
   addManualPick: (player: string, stat: string, line: number, side: Side) => void;
   removePick: (index: number) => void;
   setSide: (index: number, side: Side) => void;
@@ -54,15 +56,17 @@ export function SlipProvider({ children }: { children: ReactNode }) {
   const indexOf = (line: { player: string; stat: string; line: number }) =>
     slip.findIndex((p) => slipKey(p.player, p.stat, p.line) === slipKey(line.player, line.stat, line.line));
 
+  const slipPick = (r: LineResult, side: Side): SlipPick => ({
+    player: r.player, team: r.team, opp: r.opp, stat: r.stat, line: r.line, side,
+    p_over: r.p_over ?? null, model_p: chanceFor(r.p_over, side), line_type: r.line_type || null, line_hint: r.line_hint || null,
+  });
+
   function addPick(r: LineResult, side: Side) {
     if (slip.length >= MAX_PICKS) return toast(`An entry can have at most ${MAX_PICKS} picks.`);
     // PrizePicks allows one player on different stats in the same entry, but only one line per stat
     const sameStat = slip.find((p) => p.player === r.player && p.stat === r.stat);
     if (sameStat) return toast(`${r.player} ${r.stat} ${sameStat.line} is already on the slip. Take it off first to use this line.`);
-    setSlip([...slip, {
-      player: r.player, team: r.team, opp: r.opp, stat: r.stat, line: r.line, side,
-      p_over: r.p_over ?? null, model_p: chanceFor(r.p_over, side), line_type: r.line_type || null, line_hint: r.line_hint || null,
-    }]);
+    setSlip([...slip, slipPick(r, side)]);
     toast(`Added ${r.player} ${side.toUpperCase()} ${r.line} to your entry slip`);
   }
 
@@ -95,6 +99,10 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       if (slip[i].side === side) return removePick(i);
       setSide(i, side);
       toast(`Switched ${line.player} to ${side.toUpperCase()} ${line.line}`);
+    },
+    loadLineup(lines, k) {
+      setSaved({ slip: lines.slice(0, MAX_PICKS).map((r) => slipPick(r, r.side!)), kind: k });
+      toast(`Your entry slip is now this ${lines.length}-pick ${k === "power" ? "Power" : "Flex"}`);
     },
     addManualPick(player, stat, line, side) {
       if (slip.length >= MAX_PICKS) return toast(`An entry can have at most ${MAX_PICKS} picks.`);

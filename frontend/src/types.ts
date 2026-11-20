@@ -110,6 +110,28 @@ export interface BoardResult {
   more_only: LineResult[];
   live: LineResult[];
   other: LineResult[];
+  /** The lineups to play from this board (lineup.py). Missing on a board ranked before they existed. */
+  lineups?: Lineup[];
+}
+
+/** A lineup built from a board's ranked lines (nbaline/pickem/lineup.py). */
+export interface Lineup {
+  key: string;
+  title: string;
+  kind: EntryKind;
+  /** Picks in the entry (6 or 5), or null when too few lines qualify. */
+  size: number | null;
+  /** The lineup, best first; when size is null, the few lines that qualify. */
+  picks: LineResult[];
+  /** Lines that qualify, and how many different players they cover. */
+  candidates: number;
+  players: number;
+  break_even: number;
+  avg_chance: number | null;
+  /** At the standard payouts: return per $1, chance of a profit, chance every pick hits. */
+  ev?: number;
+  p_profit?: number;
+  p_all?: number;
 }
 
 export type PickResult = "hit" | "miss" | "push" | "void";

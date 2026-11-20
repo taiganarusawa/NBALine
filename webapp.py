@@ -33,7 +33,7 @@ from flask import Flask, jsonify, redirect, request, send_from_directory
 
 from nbaline import predictor
 from nbaline.paths import PAGE, ROOT
-from nbaline.pickem import board, calibration, explain, jerseys, lines, live, payouts, ranking, store
+from nbaline.pickem import board, calibration, explain, jerseys, lineup, lines, live, payouts, ranking, store
 from nbaline.updater import UpdateJob
 
 mimetypes.add_type("text/javascript", ".js")  # Windows can map .js to text/plain, which breaks JS modules
@@ -160,7 +160,8 @@ def lines_live():
 # ---------------------------------------------------------------- best lines (pasted board)
 @app.post("/api/board")
 def rank_board():
-    """Read a pasted PrizePicks board, run every line through the models, rank the best picks."""
+    """Read a pasted PrizePicks board, run every line through the models, rank the best picks, and
+    build the lineup to play from them (lineup.py)."""
     body = request.get_json(force=True)
     text = body.get("text", "")
     day, date_note = ranking.board_date(text, _day(body.get("date")))
@@ -184,7 +185,7 @@ def rank_board():
     known_teams = set(lines.box_scores()["TEAM_ABBREVIATION"].unique())
     groups = ranking.rank_board(found, results, break_even, known_teams)
     return jsonify(target=label, break_even=break_even, parsed=len(found), unread=unread,
-                   date=str(day.date()), date_note=date_note, **groups)
+                   date=str(day.date()), date_note=date_note, lineups=lineup.lineups(groups["ranked"]), **groups)
 
 
 # ---------------------------------------------------------------- entries

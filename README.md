@@ -33,7 +33,7 @@ The web app has five tabs:
 
 | Tab | What you do there |
 |---|---|
-| **Best lines** | Paste the PrizePicks board and get the top 10 picks for your entry type |
+| **Best lines** | Paste the PrizePicks board and get the top 10 picks for your entry type, plus a ready-to-copy 6-pick Flex lineup |
 | **Check lines** | Look up any player, stat and line |
 | **My entries** | Build a slip, save what you played, and follow it live during the games |
 | **Results** | Your record and profit, and how the model did against PrizePicks |
