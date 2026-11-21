@@ -141,11 +141,14 @@ export interface LineTypeRecord {
   verdict: "few" | "too_sure" | "cautious" | "fair";
 }
 
-/** A lineup built from a board's ranked lines (nbaline/pickem/lineup.py): "standard" (a Flex of
- *  standard lines), "goblin" (safer) or "demon" (high risk), both a Power. */
+/** The Best lineup card's choices: standard lines (a Flex), safer (Goblins) or high risk (Demons). */
+export type LineupOption = "standard" | "goblin" | "demon";
+
+/** A lineup built from a board's ranked lines (nbaline/pickem/lineup.py). */
 export interface Lineup {
-  key: "standard" | "goblin" | "demon";
-  title: string;
+  /** "flex6" (a 6-pick Flex, or 5 when only 5 lines qualify), "flex5", "goblin" or "demon" (both a Power). */
+  key: string;
+  option: LineupOption;
   kind: EntryKind;
   /** Picks in the entry (one of `sizes`), or null when too few lines qualify. */
   size: number | null;

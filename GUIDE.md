@@ -75,15 +75,23 @@ Pick the entry you plan to play and press **Find the best lines**.
 On top of the list, NBALine builds the entry to play. The **Standard / Safer / High risk** buttons
 switch between three options, and the one you pick stays chosen.
 
-**Standard: a 6-pick Flex of standard lines.**
+**Standard: a 6- or 5-pick Flex of standard lines.** The **6 picks / 5 picks** switch picks which one,
+and this browser remembers it.
+
+- **6 picks** returns more on average, but most of that comes from the 25x for 6 of 6, which lands
+  about once in 20 entries. Expect long dry spells between wins.
+- **5 picks** is steadier: it profits more often and loses less in a bad stretch, for a smaller
+  average return. In a 100-entry simulation of one night's picks (November 20, 2026), it averaged
+  about 70% of the 6-pick's profit, but its bad runs were about half as deep.
+- The switch shows only when there are enough lines for both.
 
 - Every pick clears the 6-pick Flex break-even (54.2%), best chance first.
 - One pick per player, since all of a player's lines rise and fall with his minutes.
 - At most 2 picks from one game. On a small slate it allows more, rather than leave the lineup short.
 - Only well-tested stats, and no player who is inactive or questionable tonight.
 - No stat whose lines like these have clearly lost (below).
-- With only 5 such lines it's a 5-pick Flex (54.3%). With fewer there's no lineup that night, and the
-  card lists the few that clear.
+- With only 5 such lines it's a 5-pick Flex either way (54.3%). With fewer there's no lineup that
+  night, and the card lists the few that clear.
 
 **Each stat's record.** Under every pick: how that stat's graded lines did when the page showed them
 at 54.2% or more, at the chance it would have shown that night. Hover for its likely range.

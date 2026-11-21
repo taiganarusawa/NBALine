@@ -3,28 +3,35 @@
 // on my slip" loads it onto the entry slip, so it can be saved in My entries once it's played.
 // Standard picks show how their stat's lines like these have done (calibration.stat_records); Goblins
 // and Demons show how lines of their kind have done (calibration.line_type_record).
+import { useState } from "react";
 import { useApp } from "../context/AppContext";
 import { useSlip } from "../context/SlipContext";
 import { pct, plural } from "../format";
 import { useKept } from "../kept";
 import { tipProps } from "../labels";
-import type { BoardResult, LineRecord, LineResult, LineTypeRecord, Lineup } from "../types";
+import { loadLineupSize, saveLineupSize } from "../storage";
+import type { BoardResult, LineRecord, LineResult, LineTypeRecord, Lineup, LineupOption } from "../types";
 import { LineTypeBadge } from "./Badges";
-import Seg from "./Seg";
+import Seg, { type SegOption } from "./Seg";
 
 type Records = BoardResult["stat_records"];
 
-const OPTIONS: { value: Lineup["key"]; label: string; title: string }[] = [
-  { value: "standard", label: "Standard", title: "A 6-pick Flex of standard lines" },
+const OPTIONS: SegOption<LineupOption>[] = [
+  { value: "standard", label: "Standard", title: "A 6- or 5-pick Flex of standard lines" },
   { value: "goblin", label: "Safer", title: "A 3-pick Power of Goblins: hits more often, pays less" },
   { value: "demon", label: "High risk", title: "A 3-pick Power of Demons: hits less often, pays more" },
+];
+
+const SIZES: SegOption<"6" | "5">[] = [
+  { value: "6", label: "6 picks", title: "Higher average return, bigger swings: most of it comes from the 25x for 6 of 6" },
+  { value: "5", label: "5 picks", title: "Steadier: profits more often and loses less in a bad stretch, for a smaller average return" },
 ];
 
 const sideWord = (x: LineResult) => (x.side === "more" ? "MORE" : "LESS");
 const kindName = (l: Lineup) => (l.kind === "power" ? "Power" : "Flex");
 const entryName = (l: Lineup) => `${l.size}-pick ${kindName(l)}`;
-const LINE_WORD: Record<Lineup["key"], string> = { standard: "standard line", goblin: "Goblin", demon: "Demon" };
-const kindPlural = (l: Lineup) => `${LINE_WORD[l.key]}s`;
+const LINE_WORD: Record<LineupOption, string> = { standard: "standard line", goblin: "Goblin", demon: "Demon" };
+const kindPlural = (l: Lineup) => `${LINE_WORD[l.option]}s`;
 
 const VERDICT_TEXT: Record<LineRecord["verdict"], string> = {
   winning: "even its low end is above the break-even",
@@ -43,25 +50,38 @@ export function LosingBadge({ stat, r, atLeast }: { stat: string; r: LineRecord;
   return <span className="badge bad" {...tipProps(`${recordTip(stat, r, atLeast)} Left out of the Best lineup.`)}>⚠ Losing record</span>;
 }
 
-/** The Best lineup card: the three options, one shown at a time (the choice is kept). */
+/** The Best lineup card: the three options, one shown at a time (the choice is kept), and for standard
+ *  lines a 6- or 5-pick Flex (remembered in this browser). The switch shows only when they differ. */
 export default function BestLineups({ lineups, records }: { lineups: Lineup[]; records: Records }) {
-  const [choice, setChoice] = useKept<Lineup["key"]>("board.lineup", "standard");
-  const shown = lineups.find((l) => l.key === choice) || lineups[0];
-  const options = OPTIONS.filter((o) => lineups.some((l) => l.key === o.value));
+  const [choice, setChoice] = useKept<LineupOption>("board.lineup", "standard");
+  const [size, setSize] = useState(loadLineupSize);
+  const six = lineups.find((l) => l.key === "flex6"), five = lineups.find((l) => l.key === "flex5");
+  const canSwitch = six?.size === 6 && five?.size === 5;
+  const shown = (choice === "standard" ? (canSwitch && size === 5 ? five : six) : lineups.find((l) => l.option === choice))
+    || lineups[0];
+  const options = OPTIONS.filter((o) => lineups.some((l) => l.option === o.value));
+  function pickSize(value: "6" | "5") {
+    const n = value === "5" ? 5 : 6;
+    setSize(n);
+    saveLineupSize(n);
+  }
   return (
     <div className="card lineup">
       <div className="row between wrap">
         <h2>Best lineup{shown.size ? ` · ${entryName(shown)}` : ""}{shown.priced ? "" : ` of ${kindPlural(shown)}`}</h2>
         <span className="muted small">
-          {plural(shown.candidates, LINE_WORD[shown.key])}{" "}
+          {plural(shown.candidates, LINE_WORD[shown.option])}{" "}
           {shown.priced ? (shown.candidates === 1 ? "clears" : "clear") : (shown.candidates === 1 ? "has" : "have")} {pct(shown.at_least)}{" "}
           ({plural(shown.players, "player")})
         </span>
       </div>
-      {options.length > 1 && (
-        <Seg small label="Which lineup" value={shown.key} onChange={setChoice} options={options} />
-      )}
-      <LineupBody key={shown.key} l={shown} records={shown.key === "standard" ? records : undefined} />
+      <div className="row gap wrap">
+        {options.length > 1 && <Seg small label="Which lineup" value={shown.option} onChange={setChoice} options={options} />}
+        {shown.option === "standard" && canSwitch && (
+          <Seg small label="How many picks" value={String(size) as "6" | "5"} onChange={pickSize} options={SIZES} />
+        )}
+      </div>
+      <LineupBody key={shown.key} l={shown} records={shown.option === "standard" ? records : undefined} />
     </div>
   );
 }

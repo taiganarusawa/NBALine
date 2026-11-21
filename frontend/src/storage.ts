@@ -1,6 +1,6 @@
 // What the page remembers between visits, saved in this browser only (localStorage): the entry slip,
-// the last pasted board for 12 hours, how open entries are shown, and how Results' sections are
-// opened and sorted. The names are the same as the earlier page used, so nothing is lost in the switch.
+// the last pasted board for 12 hours, the Best lineup's size, how open entries are shown, and how
+// Results' sections are opened and sorted. The names are the same as the earlier page used, so nothing is lost in the switch.
 import type { EntryKind, LineType, Side } from "./types";
 
 /** A pick on the entry slip, before it's saved as an entry. */
@@ -23,6 +23,7 @@ export type StatSort = { by: "stat" | "lines" | "right" | "breakeven"; desc: boo
 const SLIP_KEY = "nbaline-slip";
 const BOARD_KEY = "nbaline-board";
 const VIEW_KEY = "nbaline-entries-view";
+const LINEUP_SIZE_KEY = "nbaline-lineup-size";
 const STAT_SORT_KEY = "nbaline-stat-sort";
 const BOARD_KEEP_MS = 12 * 60 * 60 * 1000;
 
@@ -50,6 +51,10 @@ export function loadBoardText(): { text: string; target?: string } | null {
 }
 export const saveBoardText = (text: string, target: string) => write(BOARD_KEY, { text, target, at: Date.now() });
 export const forgetBoardText = () => forget(BOARD_KEY);
+
+/** The Standard lineup's size: a 6-pick Flex (the default) or a 5-pick Flex. */
+export const loadLineupSize = (): 6 | 5 => (read(LINEUP_SIZE_KEY) === 5 ? 5 : 6);
+export const saveLineupSize = (size: 6 | 5) => write(LINEUP_SIZE_KEY, size);
 
 /** Whether a collapsible section (e.g. "byStat" on Results) was left open. */
 export const loadSectionOpen = (name: string, fallback = false) => read<boolean>(`nbaline-open-${name}`) ?? fallback;

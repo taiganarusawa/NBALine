@@ -13,7 +13,9 @@ the model's record against PrizePicks once that adjustment is on), at most MAX_P
 and from a stat whose lines like these haven't clearly lost against PrizePicks (its record on lines
 shown at the break-even or more, calibration.stat_records: even the high end of its likely range under
 the break-even). With only 5 such lines it's a 5-pick Flex, which has about the same break-even; with
-fewer there's no lineup, since a weaker pick would pull the whole entry below break-even.
+fewer there's no lineup, since a weaker pick would pull the whole entry below break-even. It also comes
+as a 5-pick Flex by choice: a smaller average return than the 6, but steadier (it profits more often,
+and its losing stretches are shallower).
 
 Safer (Goblins) and high risk (Demons): a 3-pick Power of the best Goblins or Demons the model gives at
 least GOBLIN_AT_LEAST / DEMON_AT_LEAST, one per game, so the picks are close to independent and the
@@ -80,46 +82,49 @@ def fill(pool: list[dict], size: int, per_game: int = MAX_PER_GAME) -> list[dict
     return picks
 
 
-def _summary(key: str, title: str, kind: str, size: int | None, picks: list[dict], pool: list[dict],
+def _summary(key: str, option: str, kind: str, size: int | None, picks: list[dict], pool: list[dict],
              at_least: float) -> dict:
-    """What every lineup reports: the entry, its picks, how many lines qualified, and their average chance."""
-    return dict(key=key, title=title, kind=kind, size=size, picks=picks, at_least=at_least,
+    """What every lineup reports: the entry, its picks, how many lines qualified, and their average chance.
+    option: which of the page's choices it is ("standard", "goblin" or "demon"); key: this lineup."""
+    return dict(key=key, option=option, kind=kind, size=size, picks=picks, at_least=at_least,
                 candidates=len(pool), players=len({r["player_id"] for r in pool}),
                 avg_chance=sum(r["p_best"] for r in picks) / len(picks) if picks else None)
 
 
-def standard_lineup(ranked: list[dict], records: dict[str, dict]) -> dict:
+def standard_lineup(ranked: list[dict], records: dict[str, dict], sizes: tuple[int, ...] = SIZES) -> dict:
     """The standard lineup for a board's ranked standard lines (ranking.rank_board's "ranked"), with
-    each stat's record on lines like these (calibration.stat_records).
-        size:       6 or 5 (a 6- or 5-pick Flex), or None when too few lines qualify
-        picks:      the lineup's lines, best first (when size is None: the few that clear 6 picks' break-even)
+    each stat's record on lines like these (calibration.stat_records): a Flex of the first of `sizes`
+    there are enough lines for (key "flex6" for 6 or 5 picks, "flex5" for 5 only).
+        size:       picks in the Flex, or None when too few lines qualify
+        picks:      the lineup's lines, best first (when size is None: the few that clear the largest
+                    size's break-even)
         candidates: how many lines clear that entry's break-even (at_least); players: how many players they cover
         losing:     stats left out for a losing record, with how many of tonight's lines that was
         avg_chance, and at the standard payouts: ev (return per $1), p_profit, p_all"""
     losing = {stat for stat, r in records.items() if r["verdict"] == "losing"}
     usable = [r for r in ranked if playable(r)]
     left_out = Counter(r["stat"] for r in usable
-                       if r["stat"] in losing and r["p_best"] >= payouts.break_even("flex", SIZES[0]))
+                       if r["stat"] in losing and r["p_best"] >= payouts.break_even("flex", sizes[0]))
     usable = [r for r in usable if r["stat"] not in losing]
-    for size in SIZES:
+    for size in sizes:
         break_even = payouts.break_even("flex", size)
         pool = [r for r in usable if r["p_best"] >= break_even]
         picks = fill(pool, size)
         if len(picks) == size:
             break
-    else:   # too few for any of them: show what clears the 6-pick break-even
-        size, break_even = None, payouts.break_even("flex", SIZES[0])
+    else:   # too few for any of them: show what clears the largest size's break-even
+        size, break_even = None, payouts.break_even("flex", sizes[0])
         pool = [r for r in usable if r["p_best"] >= break_even]
-        picks = fill(pool, SIZES[0])
-    out = _summary("standard", "Standard lines", "flex", size, picks, pool, break_even)
-    out.update(sizes=list(SIZES), priced=True, losing=dict(left_out))
+        picks = fill(pool, sizes[0])
+    out = _summary(f"flex{sizes[0]}", "standard", "flex", size, picks, pool, break_even)
+    out.update(sizes=list(sizes), priced=True, losing=dict(left_out))
     if size:
         odds = payouts.entry_odds([r["p_best"] for r in picks], "flex")
         out.update(ev=odds["ev"], p_profit=odds["p_profit"], p_all=odds["p_all"])
     return out
 
 
-def power_lineup(more_only: list[dict], line_type: str, at_least: float, key: str, title: str) -> dict:
+def power_lineup(more_only: list[dict], line_type: str, at_least: float) -> dict:
     """A Power of one kind of More-only line (ranking.rank_board's "more_only"): "goblin" or "demon",
     as PrizePicks tags it (or as the player's standard line on the board shows), never a guess.
         size:       3 or 2 (picks in the Power), or None when fewer than 2 lines qualify
@@ -135,7 +140,7 @@ def power_lineup(more_only: list[dict], line_type: str, at_least: float, key: st
             break
     else:
         size, picks = None, fill(pool, POWER_SIZES[0], per_game=1)
-    out = _summary(key, title, "power", size, picks, pool, at_least)
+    out = _summary(line_type, line_type, "power", size, picks, pool, at_least)
     out.update(sizes=list(POWER_SIZES), priced=False, record=calibration.line_type_record(line_type, at_least))
     if size:
         p_all = prod(r["p_best"] for r in picks)
@@ -144,7 +149,7 @@ def power_lineup(more_only: list[dict], line_type: str, at_least: float, key: st
 
 
 def lineups(ranked: list[dict], more_only: list[dict], records: dict[str, dict]) -> list[dict]:
-    """Every lineup the Best lines page offers for this board: standard, safer, high risk."""
-    return [standard_lineup(ranked, records),
-            power_lineup(more_only, "goblin", GOBLIN_AT_LEAST, "goblin", "Safer: Goblins"),
-            power_lineup(more_only, "demon", DEMON_AT_LEAST, "demon", "High risk: Demons")]
+    """Every lineup the Best lines page offers for this board: standard (a 6- or 5-pick Flex), safer
+    (Goblins) and high risk (Demons)."""
+    return [standard_lineup(ranked, records), standard_lineup(ranked, records, SIZES[1:]),
+            power_lineup(more_only, "goblin", GOBLIN_AT_LEAST), power_lineup(more_only, "demon", DEMON_AT_LEAST)]
