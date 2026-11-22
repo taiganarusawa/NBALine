@@ -3,7 +3,7 @@ steals, blocks, turnovers, fantasy score, shooting splits, fouls, dunks and doub
 Same method as the points model (double/triple-doubles predict a yes/no chance instead of a count).
 
     python stat_models.py --evaluate     # walk-forward test of every stat not tested yet (~1 min per stat)
-    python stat_models.py --train        # train the final models -> models/stat_<KEY>.pkl (4 at a time)
+    python stat_models.py --train        # train the final models -> models/stat_<KEY>.pkl (3 at a time)
     python stat_models.py --ab lineups   # do extra inputs help? every stat with vs. without them
     python stat_models.py --ab tracking_rel --only TOV,REB   # or one version of an input group vs. another
 
@@ -20,10 +20,13 @@ import argparse
 import json
 import pickle
 import sys
+import tempfile
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from contextlib import contextmanager
 from dataclasses import replace
 from datetime import date
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -169,8 +172,7 @@ def train(keys: list | None = None, at_once: int = TRAIN_AT_ONCE):
     del df
 
     if todo:
-        with ProcessPoolExecutor(min(at_once, len(todo)), initializer=_use_training_rows,
-                                 initargs=(rows,)) as pool:
+        with training_workers(rows, min(at_once, len(todo))) as pool:
             jobs = {pool.submit(_fit_and_save, key, cfg, inner): (key, info) for key, cfg, info in todo}
             for job in as_completed(jobs):
                 key, info = jobs[job]
@@ -195,7 +197,7 @@ def ab_test(group: str, folds: list[int], keys: list | None = None, at_once: int
     rows = df[_columns([stat_recipe(key, ev.loc[key]["dist"]) for key in keys], keys, out + added)]
     del df
     scored = {}   # (key, fold, changed) -> each test row's squared error and night
-    with ProcessPoolExecutor(at_once, initializer=_use_training_rows, initargs=(rows,)) as pool:
+    with training_workers(rows, at_once) as pool:
         futures = {pool.submit(_ab_fold, key, S, out, added, changed, ev.loc[key]["dist"]): (key, S, changed)
                    for key, S, changed in jobs}
         for job in as_completed(futures):
@@ -269,10 +271,25 @@ def _columns(cfgs: list[Config], keys: list[str], extra: list[str] = ()) -> list
     return list(dict.fromkeys(cols + [c for cfg in cfgs for c in (*cfg.features, cfg.target)]))
 
 
-def _use_training_rows(rows: pd.DataFrame):
-    """A worker's initializer: keep the training rows the main process sent."""
+@contextmanager
+def training_workers(rows: pd.DataFrame, at_once: int):
+    """`at_once` worker processes, each with its own copy of the training rows. The rows are pickled once
+    to a temporary file that every worker loads, instead of being sent through each worker's start-up
+    pipe: Windows refused one of those large pipe writes while memory was low (Nov 22, 2026). It's the
+    same pickle either way, so the workers get exactly the same rows."""
+    with tempfile.TemporaryDirectory(prefix="nbaline-") as folder:
+        path = Path(folder) / "training_rows.pkl"
+        with open(path, "wb") as f:
+            pickle.dump(rows, f)
+        with ProcessPoolExecutor(at_once, initializer=_use_training_rows, initargs=(str(path),)) as pool:
+            yield pool
+
+
+def _use_training_rows(path: str):
+    """A worker's initializer: load the training rows the main process saved (training_workers)."""
     global _ROWS
-    _ROWS = rows
+    with open(path, "rb") as f:
+        _ROWS = pickle.load(f)
 
 
 def _fit_and_save(key: str, cfg: Config, inner: int) -> tuple[int, bool]:
