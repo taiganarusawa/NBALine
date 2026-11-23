@@ -142,6 +142,15 @@ reg(Config("E16_opp_shots", BEST_FEATS + F.LINEUPS + F.RETURN + F.OPP_SHOTS, **B
 reg(replace(points_recipe(), name="FINAL_O", features=points_recipe().features + F.OPP_SHOTS,
             note="FINAL + opponent shot profile x his zones"))
 
+# ---- E17: who takes over what absent teammates leave: his share of their shots, assists and rebounds, split by
+# everyone's recent averages (INHERIT). Compared against E14_return; FINAL_I is the final model with them. Better
+# on the tuning folds, no clear difference on the holdout, so Points goes without (TRAINING.md 4n). A version
+# counting only the absences that started that night (E17_inherit_new) was weaker and was dropped.
+reg(Config("E17_inherit", BEST_FEATS + F.LINEUPS + F.RETURN + F.INHERIT, **B1, params=TUNED,
+           note="+ his share of absent teammates' shots"))
+reg(replace(points_recipe(), name="FINAL_I", features=points_recipe().features + F.INHERIT,
+            note="FINAL + his share of absent teammates' shots"))
+
 
 def run(cfg: Config, folds, df) -> pd.DataFrame:
     rows, per_row = [], {}

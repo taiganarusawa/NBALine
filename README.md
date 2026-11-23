@@ -101,7 +101,8 @@ Every input for a game is built only from games played before it.
 - His recent and season averages, his per-minute rates and his shooting efficiency.
 - His minutes, rest days, back-to-backs, and how far he is into coming back from an absence.
 - Both teams' pace and ratings, and how likely a blowout is.
-- Who's out on both teams, from the official injury report.
+- Who's out on both teams, from the official injury report, and for 17 stats his likely share of the
+  shots, assists and rebounds they leave (the top shooter left takes the most).
 - Tonight's starting lineup, once it's posted.
 - NBA.com player tracking (rebound chances, touches, drives) for the 6 stats where it tested better,
   measured against the league each night because NBA.com has changed how it counts them.

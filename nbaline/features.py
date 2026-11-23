@@ -110,6 +110,14 @@ MARGIN_TERMS = ["NET_PTS", "HOME_SIDE", "MISSING_MIN_DIFF", "MISSING_FGA_DIFF", 
 MARGIN_COEF = {"const": -0.0275, "NET_PTS": 0.4922, "HOME_SIDE": 1.8997, "MISSING_MIN_DIFF": 0.0124,
                "MISSING_FGA_DIFF": -0.1269, "B2B_DIFF": 1.5053}
 MARGIN_SD = 13.4        # how far final margins land from the expected one (typical miss), from the same fit
+# Who takes over what absent teammates leave (E17, TRAINING.md 4n): MISSING_FGA says how many shots are freed up,
+# not who takes them. These split the absent players' shots, assists and rebounds among him and the rotation
+# players still playing, in proportion to their last-10 averages: the top shooter left gets the biggest part.
+# On Nov 22, 2026, with Gilgeous-Alexander out, Ajay Mitchell (OKC's top shooter left) took 14 two-pointers
+# while the model expected 10.4, about his season average. Counting only absences that started that night
+# tested weaker.
+# Used by the stats in WITH_INHERIT.
+INHERIT = ["INHERIT_FGA", "INHERIT_AST", "INHERIT_REB"]
 BLOWOUT_AT = 15         # a final margin this big either way counts as a blowout
 FEATURES = V1  # overwritten by the trained model's saved feature list at prediction time
 
@@ -136,6 +144,8 @@ LABELS = {
     "OPP_REST": "Opponent days of rest", "OPP_B2B": "Opponent on back-to-back",
     "MISSING_FGA": "Shot attempts freed up by absent teammates", "MISSING_COUNT": "Rotation teammates out",
     "MISSING_MIN": "Minutes freed up by absent teammates",
+    "INHERIT_FGA": "His share of absent teammates' shots", "INHERIT_AST": "His share of absent teammates' assists",
+    "INHERIT_REB": "His share of absent teammates' rebounds",
     "OPP_MISSING_FGA": "Opponent shot attempts missing", "OPP_MISSING_COUNT": "Opponent rotation players out",
     "OPP_POE_L15": "Opponent: points allowed vs. players' own averages (last 15)",
     "OPP_POE_TYPE": "Opponent: points allowed vs. averages, this player type (last 15)",
@@ -590,7 +600,8 @@ def missing_players(p: pd.DataFrame, t: pd.DataFrame, overrides: dict | None = N
     For an overridden game, players who missed their team's last GUESS_OUT_AFTER games are also
     assumed out, unless (game_id, team_id) is in `official`: then the official injury report was
     used and anyone not listed out is expected to play.
-    Returns (DataFrame keyed on GAME_ID+TEAM_ID, {game_id: {player_id: fga}} for override games).
+    Returns (DataFrame keyed on GAME_ID+TEAM_ID, {game_id: {player_id: fga}} for override games,
+    each player's INHERIT inputs keyed on GAME_ID+PLAYER_ID).
     """
     overrides, official = overrides or {}, official or set()
     p = p.sort_values(["PLAYER_ID", "GAME_DATE"])
@@ -606,7 +617,7 @@ def missing_players(p: pd.DataFrame, t: pd.DataFrame, overrides: dict | None = N
         j = np.searchsorted(d, np.datetime64(when)) - 1
         return j >= 0 and tm[j] == team
 
-    rows, details = [], {}
+    rows, details, shares = [], {}, []
     for (team, season), tg in t.groupby(["TEAM_ID", "SEASON"]):
         order = tg.sort_values("GAME_DATE")[["GAME_ID", "GAME_DATE"]].values
         for i, (gid, when) in enumerate(order):
@@ -626,9 +637,31 @@ def missing_players(p: pd.DataFrame, t: pd.DataFrame, overrides: dict | None = N
                 out = [pid for pid in cands if pid not in here]
             tot = lambda j: float(sum(cands[q][j] for q in out))
             rows.append((gid, team, tot(1), len(out), tot(0), tot(2), tot(3), frozenset(out)))
+            # INHERIT: each player's part of what the absent ones leave, split among him and the rotation
+            # players still playing in proportion to their last-10 averages (shots, assists, rebounds)
+            missing = [tot(j) for j in _INHERIT_COLS]
+            staying = [sum(v[j] for q, v in cands.items() if q not in out) for j in _INHERIT_COLS]
+            for pid in here:
+                own = latest.get(pid)   # his averages before tonight (his last game for this team); in `staying`
+                shares.append((gid, pid, *(                                    # too if he's in the rotation
+                    _inherited(m, own[j] if own else None, s - (own[j] if pid in cands else 0))
+                    for m, s, j in zip(missing, staying, _INHERIT_COLS))))
     df = pd.DataFrame(rows, columns=["GAME_ID", "TEAM_ID", "MISSING_FGA", "MISSING_COUNT", "MISSING_MIN",
                                      "MISSING_REB", "MISSING_AST", "_ABSENT"])  # _ABSENT: who exactly was out
-    return df, details
+    return df, details, pd.DataFrame(shares, columns=["GAME_ID", "PLAYER_ID", *INHERIT])
+
+
+_INHERIT_COLS = (1, 3, 2)   # where shots, assists and rebounds sit in missing_players' last-10 averages
+
+
+def _inherited(missing: float, mine: float | None, others: float) -> float:
+    """His part of `missing` if it goes to him and his teammates in proportion to their averages (`mine`
+    and `others`, theirs added up). 0 when nothing is missing; unknown when he has no recent games here."""
+    if missing == 0:
+        return 0.0
+    if mine is None or mine != mine or mine + others <= 0:
+        return np.nan
+    return missing * mine / (mine + others)
 
 
 WO_STATS = (("PPM", "PTS"), ("FGA_PM", "FGA"), ("REB_PM", "REB"), ("AST_PM", "AST"))
@@ -783,8 +816,8 @@ def build_features(p: pd.DataFrame, t: pd.DataFrame, overrides: dict | None = No
     set_role(p, p["STARTED"])
 
     # ---- absences on both teams
-    miss, details = missing_players(p, t, overrides, official)
-    p = p.merge(miss, on=["GAME_ID", "TEAM_ID"], how="left")
+    miss, details, inherit = missing_players(p, t, overrides, official)
+    p = p.merge(miss, on=["GAME_ID", "TEAM_ID"], how="left").merge(inherit, on=["GAME_ID", "PLAYER_ID"], how="left")
     p = p.merge(miss.drop(columns="_ABSENT").rename(columns={"TEAM_ID": "OPP_ID", "MISSING_FGA": "OPP_MISSING_FGA",
                                      "MISSING_COUNT": "OPP_MISSING_COUNT", "MISSING_MIN": "OPP_MISSING_MIN",
                                      "MISSING_REB": "OPP_MISSING_REB", "MISSING_AST": "_OMA"}),
@@ -902,6 +935,13 @@ WITH_RETURN = {"PRA", "PR", "PA", "FS", "REB", "XFGM", "XFGA", "BS", "BLK"}
 # on 2025-26 and 2026-27 so far (E16, TRAINING.md 4m): how many threes and shots he takes. Two Pointers Attempted
 # also passed, but leaned worse on 2026-27, so it goes without. No difference to Points or the scoring combos.
 WITH_OPP_SHOTS = {"X3PA", "FG3M", "XFGA"}
+# Who takes over what absent teammates leave helped these 17 on 2023-24 and 2024-25, and none got worse on 2025-26
+# and 2026-27 so far (E17, TRAINING.md 4n). Shot volume and the scoring combos most: FG and two-point attempts,
+# Pts+Rebs+Asts, Pts+Rebs, Pts+Asts, fantasy score, turnovers and defensive rebounds were better in both periods.
+# No difference to the other 8. Points was better on 2022-23 to 2024-25 but not on 2025-26 and 2026-27, so it
+# goes without.
+WITH_INHERIT = {"XFGA", "X2PA", "PRA", "PR", "PA", "FS", "TOV", "XDREB",
+                "X3PA", "XFGM", "X2PM", "FG3M", "XFTM", "AST", "REB", "RA", "XDD"}
 
 
 def stat_feature_list(key: str) -> list[str]:
@@ -911,7 +951,7 @@ def stat_feature_list(key: str) -> list[str]:
     return ([f"{key}_{h}" for h in HIST] + others + SHARED + ([] if key in NO_LINEUPS else LINEUPS)
             + (TRACKING_REL if key in WITH_TRACKING else []) + (SHOTS if key in WITH_SHOTS else [])
             + (HUSTLE if key in WITH_HUSTLE else []) + (RETURN if key in WITH_RETURN else [])
-            + (OPP_SHOTS if key in WITH_OPP_SHOTS else []))
+            + (OPP_SHOTS if key in WITH_OPP_SHOTS else []) + (INHERIT if key in WITH_INHERIT else []))
 
 
 def history_keys(keys) -> list[str]:

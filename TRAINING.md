@@ -781,6 +781,56 @@ but not how many points he'll score: the same lesson as tracking, shots and hust
 already show. These tell the model how far he still is from his normal minutes after an absence, which
 it couldn't see.
 
+## 4n. Who takes over what absent teammates leave (`E17_inherit`, November 2026)
+
+On Nov 22, 2026, with Gilgeous-Alexander and Mara out, Ajay Mitchell took 14 two-pointers. The models projected
+10.4, about his season average. They knew 33 shots a game were missing (`MISSING_FGA`) but not who would take
+them: on average a missing star's shots spread over the whole team, so nobody's projection moved much.
+
+- **His share:** the absent rotation players' shots, assists and rebounds (last-10 averages), split among him
+  and the rotation players still playing in proportion to their own last-10 averages. The top shooter left
+  gets the biggest part: Mitchell's came to 10 of the 33 shots.
+- **Sanity check:** when a teammate who played the last game sits (10+ shots a game), the fifth of players
+  with the biggest share took 1.9 more shots than their recent-weighted average; the smallest fifth, 0.3 more.
+
+**3 inputs** (`features.INHERIT`), built in `missing_players` from the same absences as `MISSING_FGA`, so the
+app (injury report) and training (who really sat) agree. A second version counting only absences that started
+that night (they played the team's last game) was better on 9 of the 15 stats tried first, against 14 for
+this one, and weaker on Points; it was dropped.
+
+**Points:** better on 2022-23 to 2024-25: CRPS −0.0064 [−0.0083, −0.0046] (vs. `E14_return`). On 2025-26 and
+2026-27 no clear difference: −0.0003 [−0.0032, +0.0025], with the average projection 0.2 points too high
+instead of 0.1 and the chances a little less well calibrated. So Points goes without.
+
+| Stat (Brier at the usual line) | 2023-25 | 2025-27 check |
+|---|---|---|
+| FG Attempted | 0.2311 → 0.2301, **better** | **better** (−0.0004) |
+| Two Pointers Attempted | 0.2336 → 0.2329, **better** | **better** (−0.0005) |
+| Fantasy Score | 0.2361 → 0.2354, **better** | **better** (−0.0005) |
+| Pts+Rebs+Asts | 0.2348 → 0.2341, **better** | **better** (−0.0004) |
+| Pts+Asts | 0.2363 → 0.2356, **better** | **better** (−0.0006) |
+| Pts+Rebs | 0.2366 → 0.2360, **better** | **better** (−0.0004) |
+| Turnovers | 0.2303 → 0.2301, **better** | **better** (−0.0003) |
+| Defensive Rebounds | 0.2354 → 0.2353, **better** | **better** (−0.0003) |
+| Free Throws Made, Assists, FG Made, Rebs+Asts, 3-PT Attempted, Two Pointers Made, Double Doubles, Rebounds, 3-PT Made | **better** (−0.0001 to −0.0004) | no clear difference |
+| Offensive Rebounds, Blks+Stls | no clear difference | **better** (−0.0002) |
+| Free Throws Attempted, Steals, Triple Doubles, Blocked Shots, Personal Fouls, Dunks | no clear difference | no clear difference |
+
+No stat was worse in either period. On games with a fresh absence of 10+ shots the gains were 2 to 3 times
+bigger (FG Attempted −0.0022 on 2023-25). For the players in line for 4+ of those shots, the models had been
+projecting too few: FG attempts +0.35 under on 2023-25 and +0.19 on 2025-27, two-point attempts +0.30 and
++0.27. With the inputs: +0.15 and −0.07, +0.15 and +0.11. The scoring combos overshoot a little for them
+(Pts+Rebs+Asts −0.11 and −0.26).
+
+Saved as `experiments/stat_ab_inherit_tune.csv` and `_2025-2026.csv` (both periods in one run).
+
+**Decision:** the 17 stats better on 2023-25 use them (`features.WITH_INHERIT`; old models in
+`models/before_inherit`), the rule every input group has followed: none got worse on 2025-26 or 2026-27.
+
+**What it doesn't fix:** extreme nights. Retrained on games before Nov 22, the Two Pointers Attempted model
+with these inputs projects Mitchell at 10.8 instead of 10.5. The models learn the usual effect (about 2 more
+shots for the player in line for most of them), and a night with nine players out is far outside it.
+
 ---
 
 ## 5. What would actually move the needle next
