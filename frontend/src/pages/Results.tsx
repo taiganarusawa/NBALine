@@ -360,8 +360,8 @@ function BySure({ bands: all }: { bands: SureBand[] }) {
   );
 }
 
-/** The table in plain words: is it right more often when it's surer, is it as right as it says, and
- *  which groups clear the break-even (and whether that's proven yet). */
+/** The table in plain words: is it right more often when it's surer, and is it as right as it says.
+ *  (Which groups clear the break-even, the chart shows.) */
 function SureTakeaway({ picks }: { picks: SureBand[] }) {
   const enough = picks.filter((b) => b.n >= ENOUGH);
   if (!enough.length) return <p className="takeaway">Not enough graded picks yet to tell how the model does when it's surer.</p>;
@@ -369,28 +369,16 @@ function SureTakeaway({ picks }: { picks: SureBand[] }) {
   const climb = rightRate(strong) - rightRate(weak);
   const n = enough.reduce((sum, b) => sum + b.n, 0);
   const tooSure = enough.reduce((sum, b) => sum + b.n * (b.model_said - rightRate(b)), 0) / n;   // weighted by lines
-  const clear = enough.filter((b) => rightRate(b) >= BREAK_EVEN);
-  const proven = clear.filter((b) => rightRate(b) - margin(rightRate(b), b.n) >= BREAK_EVEN);
 
   const surer = strong === weak ? null
     : climb >= 0.03 ? <>The surer the model is, the more often it's right: <b>{pct(rightRate(weak))}</b> of its {sureLabel(weak)} picks,
         {" "}<b>{pct(rightRate(strong))}</b> of its {sureLabel(strong)} picks. </>
     : <>Being surer hasn't made it right more often yet ({pct(rightRate(weak))} at {sureLabel(weak)}, {pct(rightRate(strong))} at {sureLabel(strong)}). </>;
-  const honest = tooSure >= 0.02 ? <>But it's right less often than it says: about <b>{Math.round(tooSure * 100)} points</b> less on average. </>
-    : tooSure <= -0.02 ? <>It's right a little more often than it says. </> : <>It's about as right as it says. </>;
-  const unproven = clear.filter((b) => !proven.includes(b));
-  const which = clear.length === enough.length ? "All its picks are" : `Only its ${andList(clear.map(sureLabel))} picks are`;
-  // proven: even the low end of the ± is above the break-even. All, none, or some of the groups above it.
-  const proof = !unproven.length ? ", and proven: even the low end of the ± is above it."
-    : !proven.length ? `, and even ${clear.length === 1 ? "that isn't" : "those aren't"} proven yet: the ± still reaches below it.`
-    : `. The ${andList(proven.map(sureLabel))} ones are proven: even the low end of their ± is above it. `
-      + `The ${andList(unproven.map(sureLabel))} ones aren't yet.`;
-  const beats = !clear.length ? <>None of its picks are above the {pct(BREAK_EVEN)} break-even yet.</>
-    : <>{which} above the {pct(BREAK_EVEN)} break-even{proof}</>;
-  return <p className="takeaway">{surer}{honest}{beats}</p>;
+  const honest = tooSure >= 0.02 ? <>But it's right less often than it says: about <b>{Math.round(tooSure * 100)} points</b> less on average.</>
+    : tooSure <= -0.02 ? <>It's right a little more often than it says.</> : <>It's about as right as it says.</>;
+  return <p className="takeaway">{surer}{honest}</p>;
 }
 
-const andList = (items: string[]) => (items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`);
 const pct0 = (p: number) => `${Math.round(p * 100)}%`;
 
 // The said-vs-right chart runs from 40% to 80% (where these numbers live): the break-even dashed, a
