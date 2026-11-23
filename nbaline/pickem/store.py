@@ -14,6 +14,7 @@ import pandas as pd
 
 from .. import features as F
 from ..paths import PICKEM_DB as DB, PLAYER_LOGS
+from .ingame import YES_NO
 from .payouts import entry_odds, paid_status, settle, stat_value
 
 
@@ -318,11 +319,31 @@ def summary() -> dict:
         model["lean_hit_rate"] = float(right[lean].mean()) if lean.any() else None
         pts = c[c["stat"] == "Points"]
         model["mae"] = float((pts["actual"] - pts["proj"]).abs().mean()) if len(pts) else None
-        model["by_stat"] = {st: dict(n=len(g), nights=int(g["game_date"].nunique()), hit_rate=float(right[g.index].mean()))
-                            for st, g in c.groupby("stat")}
+        model["by_stat"] = _by_stat(c, right)
+        # the same, counting only the lines the page would show as picks today (Results' "Shown picks")
+        shown = _sure_today(c) >= LEAN_AT
+        model["by_stat_shown"] = _by_stat(c[shown], right[shown])
         model["by_sure"] = _by_sure(sure, right)
     out["model"] = model
     return out
+
+
+def _by_stat(lines: pd.DataFrame, right: pd.Series) -> dict:
+    """Each stat's lines, graded nights, and how often the model's side was right."""
+    return {st: dict(n=len(g), nights=int(g["game_date"].nunique()), hit_rate=float(right[g.index].mean()))
+            for st, g in lines.groupby("stat")}
+
+
+def _sure_today(lines: pd.DataFrame) -> pd.Series:
+    """Each standard line's chance for the side the model favoured, as the page would show it today:
+    with today's chance adjustment when it's on, on every night (also those before it switched on).
+    Yes/no props are left alone, as on the page."""
+    from . import calibration   # imported here: it reads the saved lines through this module
+    s = calibration.status()
+    p = lines["p_over"]
+    if s["on"]:
+        p = p.where(lines["stat"].isin(YES_NO), calibration.adjust(p, s["keep"]))
+    return np.maximum(p, 1 - p).round(4)
 
 
 def _saved_lines(checks: pd.DataFrame, counted: pd.DataFrame, boards: int) -> dict:

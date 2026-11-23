@@ -315,8 +315,12 @@ For a 6-pick Flex:
   - A model worth following is right more often the surer it is. "Model was" says how far its chance
     ran above or below how often it was right.
   - Click a column of the by-stat table to sort it.
+  - **All lines / Shown picks:** the by-stat table counts every graded standard line, or only the ones
+    the page would show as picks today (54.2%+ for one side after today's chance adjustment, applied
+    to every night, also the ones before it switched on). Shown picks is closer to what you'd play;
+    All lines includes the near coin flips. The page remembers your choice.
   - A stat gets a **trusted** badge after 10+ graded nights, once even the low end of its range is
-    above break-even.
+    above break-even (in either view).
 
 ### Why it won or lost
 

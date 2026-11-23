@@ -287,6 +287,8 @@ details { margin-top: 8px; } summary { cursor: pointer; color: var(--muted); fon
 .by-stat[open] > summary::before { transform: rotate(45deg); }
 .by-stat > summary h3 { margin: 0; }
 .by-stat > summary:hover h3 { color: var(--accent); }
+/* "Model's pick by stat": what the table counts, next to the All lines / Shown picks switch */
+.stat-view { max-width: 720px; } .stat-view p { flex: 1 1 300px; }
 .stat-table { width: 100%; max-width: 720px; border-collapse: collapse; margin: 10px 0 6px; font-size: 13px; }
 .stat-table th { text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); padding: 0 10px 6px 0;
   border-bottom: 1px solid var(--line); }

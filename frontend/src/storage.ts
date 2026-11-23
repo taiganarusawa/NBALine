@@ -19,12 +19,14 @@ export interface SlipPick {
 }
 
 export type StatSort = { by: "stat" | "lines" | "right" | "breakeven"; desc: boolean };
+export type StatView = "all" | "shown";
 
 const SLIP_KEY = "nbaline-slip";
 const BOARD_KEY = "nbaline-board";
 const VIEW_KEY = "nbaline-entries-view";
 const LINEUP_SIZE_KEY = "nbaline-lineup-size";
 const STAT_SORT_KEY = "nbaline-stat-sort";
+const STAT_VIEW_KEY = "nbaline-stat-view";
 const BOARD_KEEP_MS = 12 * 60 * 60 * 1000;
 
 // localStorage can be unavailable (private mode, blocked storage): the page still works, it just forgets.
@@ -67,3 +69,7 @@ export const saveEntriesView = (view: "list" | "grid") => write(VIEW_KEY, view);
 /** How Results' "Model's pick by stat" table is sorted. */
 export const loadStatSort = (): StatSort => read<StatSort>(STAT_SORT_KEY) || { by: "lines", desc: true };
 export const saveStatSort = (sort: StatSort) => write(STAT_SORT_KEY, sort);
+
+/** Which lines that table counts: "all" graded standard lines (the default), or only the "shown" picks. */
+export const loadStatView = (): StatView => (read(STAT_VIEW_KEY) === "shown" ? "shown" : "all");
+export const saveStatView = (view: StatView) => write(STAT_VIEW_KEY, view);

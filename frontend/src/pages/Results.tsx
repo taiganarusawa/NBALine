@@ -3,12 +3,13 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { api, messageOf, post } from "../api";
 import EntryCard from "../components/EntryCard";
+import Seg from "../components/Seg";
 import ShowInSteps from "../components/ShowInSteps";
 import { useApp } from "../context/AppContext";
 import { money, pct, plural } from "../format";
 import { useKept } from "../kept";
 import { tipProps } from "../labels";
-import { loadSectionOpen, loadStatSort, saveSectionOpen, saveStatSort, type StatSort } from "../storage";
+import { loadSectionOpen, loadStatSort, loadStatView, saveSectionOpen, saveStatSort, saveStatView, type StatSort } from "../storage";
 import type { Calibration, MoreOnlyKind, ResultsResponse, StatRecord, Summary, SureBand } from "../types";
 
 const BREAK_EVEN = 0.542;   // per pick, 5/6-pick Flex: the bars' marker
@@ -91,7 +92,8 @@ function ResultsSummary({ s, calibration }: { s: Summary; calibration?: Calibrat
         <Tile label="Projection miss" value={model.mae == null ? "—" : `${model.mae.toFixed(1)} pts`} detail="average, Points lines" />
         {calibration && <AdjustmentTile cal={calibration} />}
       </div>
-      {model.by_stat && Object.keys(model.by_stat).length > 0 && <ByStat byStat={model.by_stat} />}
+      {model.by_stat && Object.keys(model.by_stat).length > 0
+        && <ByStat byStat={model.by_stat} shown={model.by_stat_shown} adjusted={!!calibration?.on} />}
       {model.by_sure && <BySure bands={model.by_sure} />}
       <GoblinsAndDemons s={s} />
       <SavedLines saved={s.saved} />
@@ -196,9 +198,14 @@ function sortStats(rows: StatRow[], { by, desc }: StatSort) {
 const lowEnd = (v: StatRecord) => v.hit_rate - margin(v.hit_rate, v.n);
 const isTrusted = (v: StatRecord) => v.nights >= TRUST_NIGHTS && lowEnd(v) >= BREAK_EVEN;
 
-function ByStat({ byStat }: { byStat: Record<string, StatRecord> }) {
+/** The table counts every graded standard line, or (Shown picks) only the ones the page would show as
+ *  picks today, with today's chance adjustment on every night. */
+function ByStat({ byStat, shown, adjusted }: { byStat: Record<string, StatRecord>; shown?: Record<string, StatRecord>;
+                                              adjusted: boolean }) {
   const [sort, setSort] = useState(loadStatSort);
-  const rows = Object.entries(byStat);
+  const [view, setView] = useState(loadStatView);
+  const showing = view === "shown" && shown ? "shown" : "all";
+  const rows = Object.entries(showing === "shown" ? shown! : byStat);
 
   /** A header click: sort by that column, or flip the order if it's already sorted by it. A new column
    *  starts with its natural order: most lines / highest rate first, stats A to Z. */
@@ -212,8 +219,9 @@ function ByStat({ byStat }: { byStat: Record<string, StatRecord> }) {
   const enough = rows.filter(([, v]) => v.n >= ENOUGH);
   const winning = enough.filter(([, v]) => v.hit_rate >= BREAK_EVEN).length;
   const trusted = rows.filter(([, v]) => isTrusted(v)).length;
-  const nights = Math.max(...rows.map(([, v]) => v.nights ?? 0));
+  const nights = Math.max(0, ...rows.map(([, v]) => v.nights ?? 0));
   const headline = <>
+    {showing === "shown" && "Shown picks · "}
     {enough.length ? `${enough.length} of ${rows.length} stats have ${ENOUGH}+ lines · ${winning} of those at or above break-even`
       : `${rows.length} stats · none has ${ENOUGH} graded lines yet`}
     {trusted ? <> · <b>{trusted} trusted</b></>
@@ -222,7 +230,16 @@ function ByStat({ byStat }: { byStat: Record<string, StatRecord> }) {
 
   return (
     <Fold name="byStat" title="Model's pick by stat" headline={headline}>
-      <p className="muted small">How often the side the model favoured was right, on standard lines. Click a column to sort by it.</p>
+      <div className="row between wrap gap stat-view">
+        <p className="muted small">{showing === "shown"
+          ? `Only the lines the page would show as picks today: ${pct(BREAK_EVEN)}+ for one side`
+            + (adjusted ? " after today's chance adjustment, on every night (also the ones before it switched on)." : ".")
+          : "How often the side the model favoured was right, on every graded standard line."} Click a column to sort by it.</p>
+        {shown && <Seg small label="Which lines the table counts" value={showing} onChange={(v) => { setView(v); saveStatView(v); }}
+          options={[{ value: "all", label: "All lines", title: "Every graded standard line, however slight the model's lean" },
+                    { value: "shown", label: "Shown picks", title: `Only the lines it would show as picks today (${pct(BREAK_EVEN)}+)` }]} />}
+      </div>
+      {!rows.length && <p className="muted small">No graded lines at {pct(BREAK_EVEN)}+ yet.</p>}
       <table className="stat-table">
         <thead><tr>
           {STAT_COLUMNS.map(([by, label, cls]) => {

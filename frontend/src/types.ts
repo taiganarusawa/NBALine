@@ -366,6 +366,9 @@ export interface Summary {
     lean_hit_rate?: number | null;
     mae?: number | null;
     by_stat?: Record<string, StatRecord>;
+    /** The same, counting only the lines the page would show as picks today: 54.2%+ for one side after
+     *  today's chance adjustment, on every night (store._sure_today). */
+    by_stat_shown?: Record<string, StatRecord>;
     by_sure?: SureBand[];
   };
 }
