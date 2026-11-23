@@ -251,8 +251,8 @@ export interface LiveState {
   /** ... and of finishing exactly on a whole-number line: a push, so the pick reverts. */
   live_push?: number;
   live_expected?: number;
-  /** NBA.com's live feed didn't answer the last check: these are the last numbers it sent (none yet:
-   *  state "live", text "waiting for NBA.com's live feed"). */
+  /** Neither NBA.com's live feed nor ESPN's answered the last check: these are the last numbers they
+   *  sent (none yet: state "live", text "waiting for the live feed"). */
   feed_down?: boolean;
 }
 
@@ -297,7 +297,7 @@ export interface EntriesLive {
   entries: Record<string, EntryLive>;
   live: boolean;
   pending: boolean;
-  /** A pick's game is on, but NBA.com's live feed didn't answer the last check. */
+  /** A pick's game is on, but neither NBA.com's live feed nor ESPN's answered the last check. */
   feed_down?: boolean;
 }
 

@@ -41,7 +41,7 @@ export function useLiveLines(lines: { id: string; r: LineResult }[]) {
  *  stands, and the model's chance from here (r is the line, x its live state). */
 export function LiveBox({ r, x }: { r: LineResult; x?: LiveState }) {
   const side = pickSide(r);
-  const known = x?.clock != null;   // NBA.com's feed has sent his game
+  const known = x?.clock != null;   // the live feed has sent his game
   return (
     <div className={`live-box${known && !x.game_live ? " over" : ""}`}>
       <div className="live-head">
@@ -55,7 +55,7 @@ export function LiveBox({ r, x }: { r: LineResult; x?: LiveState }) {
             <PacePill x={x} side={side} />
           </>
         ) : (
-          <span className="muted">{x?.feed_down ? "waiting for NBA.com's live feed…" : "getting the live box score…"}</span>
+          <span className="muted">{x?.feed_down ? "waiting for the live feed…" : "getting the live box score…"}</span>
         )}
       </div>
       {known && <ProgressBar x={x} line={r.line} />}
@@ -86,14 +86,14 @@ function LiveChance({ x, r }: { x: LiveState; r: LineResult }) {
   );
 }
 
-/** "feed not answering": NBA.com's live feed didn't answer the last check, so these are the last
- *  numbers it sent (the clock shows when from). */
+/** "feed not answering": neither NBA.com's live feed nor ESPN's answered the last check, so these
+ *  are the last numbers they sent (the clock shows when from). */
 function FeedDown({ x }: { x?: LiveState }) {
   if (!x?.feed_down) return null;
   return <span className="feed-down" title={FEED_DOWN_TIP}>feed not answering</span>;
 }
 
-const FEED_DOWN_TIP = "NBA.com's live feed didn't answer the last check, so these are the last numbers it sent " +
+const FEED_DOWN_TIP = "Neither NBA.com's live feed nor ESPN's answered the last check, so these are the last numbers they sent " +
   "(the game clock shows when from). NBALine keeps trying every 15 seconds.";
 
 const BAR_LOOK: Record<string, string> = { hit: "won", miss: "lost", push: "even", void: "even", live: "live" };

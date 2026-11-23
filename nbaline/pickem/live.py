@@ -1,15 +1,17 @@
 """Live scores for open entries: each pick's stat so far, and whether it has already won or lost.
 
-Source: the NBA's live data feed (cdn.nba.com, what NBA.com's live box scores use; free, no login).
-A game is only fetched once it has tipped off, and at most every CACHE_SECONDS, however often the
-page asks; a page's games are fetched side by side. Box scores don't count dunks, so for dunk picks
-the game's play-by-play is read too (made shots of type DUNK).
+Source: the NBA's live data feed (cdn.nba.com, what NBA.com's live box scores use; free, no login),
+and when it doesn't answer, ESPN's (espn.py), translated into the same shape. A game is only fetched
+once it has tipped off, and at most every CACHE_SECONDS, however often the page asks; a page's games
+are fetched side by side. Box scores don't count dunks, so for dunk picks the game's play-by-play is
+read too (made shots of type DUNK).
 
 Each fetch is a fresh request that keeps no cookies. The feed's bot protection tracks a connection by
 its cookies, and one connection kept all night (nba_api's shared session) got flagged and stopped
-getting answers (Nov 18, 2026). If a check fails anyway, the game keeps the last numbers the feed sent,
-its picks say so (feed_down), the page keeps checking every 15 seconds, and the server window says
-why the feed stopped answering and when it answers again.
+getting answers (Nov 18, 2026). On Nov 22 it turned away every request from this computer anyway, so
+when NBA.com refuses, ESPN stands in and NBA.com is asked again only once NBA_RETRY_SECONDS have
+passed. If neither answers, the game keeps the last numbers it got, its picks say so (feed_down), the
+page keeps checking every 15 seconds, and the server window says why and when the feeds answer again.
 
 A pick is decided before the final buzzer as soon as the player passes the line: every stat only goes
 up during a game (except fantasy score, which turnovers lower), so More has won and Less has lost.
@@ -25,7 +27,7 @@ import pandas as pd
 import requests
 
 from .. import schedule as S
-from . import ingame
+from . import espn, ingame
 from .payouts import outcome_chances, settle, stat_value
 
 FEED_URL = "https://cdn.nba.com/static/json/liveData/{feed}/{feed}_{game_id}.json"   # boxscore, playbyplay
@@ -33,6 +35,7 @@ FEED_HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)", "Refe
                 "Accept": "application/json"}
 FEED_TIMEOUT = 8            # seconds to wait for the feed (the page gives up on the server after 25)
 CACHE_SECONDS = 10          # under the page's 15-second refresh, so each refresh gets fresh numbers
+NBA_RETRY_SECONDS = 60      # after NBA.com refuses, ESPN alone for this long before NBA.com is asked again
 LIVE, FINAL = 2, 3          # the feed's gameStatus (1 = not started)
 CAN_GO_DOWN = {"Fantasy Score"}
 YES_NO = {"Double Doubles", "Triple Doubles"}   # no "pace" for these: he has one or he doesn't
@@ -49,30 +52,62 @@ _COLUMNS = {"points": "PTS", "reboundsTotal": "REB", "assists": "AST", "steals":
 @dataclass(frozen=True)
 class _Feed:
     """One game's box score or play-by-play, as of its latest check."""
-    checked: float          # when the feed was last asked (time.time())
-    data: dict | None       # the latest numbers it sent, kept through failed checks (None: none yet)
-    error: str = ""         # why the latest check failed ("" = it answered)
+    checked: float          # when the feeds were last asked (time.time())
+    data: dict | None       # the latest numbers they sent, kept through failed checks (None: none yet)
+    error: str = ""         # why the latest check failed ("" = NBA.com or ESPN answered)
 
 
 _feeds: dict[tuple[str, str], _Feed] = {}   # (feed, game_id) -> its latest check
+_matchups: dict[str, tuple] = {}            # game_id -> (date, home, away), to find the game on ESPN
+_nba_refused = {"at": 0.0, "why": ""}       # NBA.com's latest refusal (at 0: it answered last time)
 
 
 def _fetch(feed: str, game_id: str) -> _Feed:
-    """A game's feed ("boxscore" or "playbyplay"), asked again once CACHE_SECONDS have passed."""
+    """A game's feed ("boxscore" or "playbyplay"), asked again once CACHE_SECONDS have passed:
+    NBA.com's, else ESPN's."""
     last = _feeds.get((feed, game_id))
     if last and time.time() - last.checked < CACHE_SECONDS:
         return last
+    data, error = _from_nba(feed, game_id), ""
+    if data is None:
+        try:
+            data = espn.game_feed(feed, game_id, *_matchups[game_id])
+        except Exception as e:
+            error = f"NBA.com: {_nba_refused['why']} | ESPN: {_why(e)}"
+    now = _Feed(time.time(), data if data is not None else last.data if last else None, error)
+    if bool(now.error) != bool(last and last.error):   # in the server window: when it stops or starts answering
+        print(f"[live] game {game_id}'s {feed} "
+              + (f"isn't coming from either feed: {now.error}" if now.error else "is coming in again"),
+              file=sys.stderr, flush=True)
+    _feeds[(feed, game_id)] = now
+    return now
+
+
+def _from_nba(feed: str, game_id: str) -> dict | None:
+    """NBA.com's feed, or None when it refuses (no file yet just after tip-off, blocked, a network
+    hiccup). After a refusal it rests for NBA_RETRY_SECONDS, so a blocked feed isn't asked every few
+    seconds for every game."""
+    refused = _nba_refused["at"]
+    if refused and time.time() - refused < NBA_RETRY_SECONDS:
+        return None
     try:   # requests.get, not a shared session: no cookies carried from one check to the next
         r = requests.get(FEED_URL.format(feed=feed, game_id=game_id), headers=FEED_HEADERS, timeout=FEED_TIMEOUT)
         r.raise_for_status()
-        now = _Feed(time.time(), r.json()["game"])
-    except Exception as e:   # no file yet (just after tip-off), blocked, or a network hiccup: try again next time
-        now = _Feed(time.time(), last.data if last else None, f"{type(e).__name__}: {e}"[:300])
-    if bool(now.error) != bool(last and last.error):   # in the server window: when it stops or starts answering
-        print(f"[live] NBA.com's {feed} feed for game {game_id} "
-              + (f"isn't answering: {now.error}" if now.error else "is answering again"), file=sys.stderr, flush=True)
-    _feeds[(feed, game_id)] = now
-    return now
+        game = r.json()["game"]
+    except Exception as e:
+        if not refused:   # in the server window: when it stops answering, and (below) when it's back
+            print(f"[live] NBA.com's live feed isn't answering ({_why(e)}); using ESPN's, and asking NBA.com "
+                  f"again every {NBA_RETRY_SECONDS} seconds", file=sys.stderr, flush=True)
+        _nba_refused.update(at=time.time(), why=_why(e))
+        return None
+    if refused:
+        print("[live] NBA.com's live feed is answering again", file=sys.stderr, flush=True)
+    _nba_refused.update(at=0.0, why="")
+    return game
+
+
+def _why(e: Exception) -> str:
+    return f"{type(e).__name__}: {e}"[:300]
 
 
 def _minutes(iso: str) -> float:
@@ -180,9 +215,9 @@ def _still_needed(side: str, line: float, value: float, whole_numbers: bool) -> 
 
 def _pick_now(p: dict, game: dict | None, rows: dict, dunks: dict | None, tip: dict | None = None,
               feed_down: bool = False) -> dict:
-    """feed_down: the feed didn't answer the latest check, so `game` is the last it sent (or None)."""
+    """feed_down: no feed answered the latest check, so `game` is the last one sent (or None)."""
     if game is None and feed_down:   # tipped off, but the feed hasn't sent the game: in play, no numbers yet
-        return dict(state="live", text="waiting for NBA.com's live feed", feed_down=True)
+        return dict(state="live", text="waiting for the live feed", feed_down=True)
     if game is None:   # not started: when it tips off, if the schedule says ("starts 7:30 PM")
         return dict(state="pending", text=f"starts {tip['tip']}" if tip else "not started", **(tip or {}))
     started, final = game["gameStatus"] >= LIVE, game["gameStatus"] == FINAL
@@ -192,6 +227,8 @@ def _pick_now(p: dict, game: dict | None, rows: dict, dunks: dict | None, tip: d
     if started:   # {"UTA": 98, "MIA": 102}
         out["score"] = {t["teamTricode"]: int(t.get("score") or 0) for t in (game["homeTeam"], game["awayTeam"])}
     row = rows.get(int(p["player_id"]))
+    if row is None and game.get("source") == "ESPN" and not final:   # left out of ESPN's box score so far,
+        return dict(out, state="live", text="not in ESPN's box score yet")   # or his name didn't match there
     if row is None or (started and not row["active"]) or (final and not row["played"]):
         why = row["why_out"] if row else ""
         return dict(out, state="void", text=f"not playing{f' ({why})' if why else ''}")
@@ -217,7 +254,7 @@ def _game_states(picks: list[dict]) -> tuple[dict, dict, set]:
     """({game_id: its live box score, the latest the feed sent; None if it hasn't tipped off or the feed
          hasn't sent it yet},
         {game_id: when a game that hasn't tipped off starts: {"tip": "7:30 PM", "tip_utc": ...}},
-        {game_id: tipped off, but the feed didn't answer the latest check}).
+        {game_id: tipped off, but no feed answered the latest check}).
     Only games from today or earlier that have reached tip-off time are fetched."""
     now, today = datetime.now(timezone.utc), date.today()
     tipped, tips = [], {}
@@ -226,6 +263,8 @@ def _game_states(picks: list[dict]) -> tuple[dict, dict, set]:
         schedule = {str(r["GAME_ID"]): r for r in S.load(day).to_dict("records")}
         for g in set(ids):
             row = schedule.get(str(g))
+            if row is not None:
+                _matchups[str(g)] = (day, row["HOME"], row["AWAY"])
             if day <= today and (row is None or now >= S.tipoff(row)):
                 tipped.append(g)
             elif row is not None:   # another day's game also says which day
@@ -255,7 +294,7 @@ def lines_live(lines: list[dict]) -> dict:
     """Check lines and Best lines: the same live state for lines you checked or pasted (side = the
     model's pick), plus the model's chance from here (live_more) for lines sent with their pre-game
     proj, sd and usual_minutes. {"picks": {id: {...}}, "live": one is still being played,
-    "feed_down": NBA.com's feed didn't answer for one}"""
+    "feed_down": no feed answered for one}"""
     now = picks_now(lines)
     return dict(picks=now, live=any(v["state"] in ("live", "pending") or v.get("game_live") for v in now.values()),
                 feed_down=any(v.get("feed_down") for v in now.values()))
@@ -268,7 +307,7 @@ def open_entries_live(entries: list[dict], latest: dict | None = None) -> dict:
     (lines.rechecked()); a pick without one uses the chance and projection saved with the entry.
     {"picks": {pick_id: {...}}, "entries": {entry_id: {...}},
      "live": a pick is still being played, "pending": a pick's game hasn't started,
-     "feed_down": NBA.com's feed didn't answer for a pick's game, so it shows the last numbers it sent}"""
+     "feed_down": no feed answered for a pick's game, so it shows the last numbers it got}"""
     latest = latest or {}
     open_entries = [e for e in entries if e["status"] == "open"]
     # the live chance starts from the latest pre-game projection, else the one saved with the pick

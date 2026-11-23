@@ -5,7 +5,8 @@
 export const LIVE_EVERY = 15_000;
 
 /** A live request that hasn't answered by then is dropped and asked again: the server waits at most
- *  8 seconds for NBA.com (nbaline/pickem/live.py), so this means the request itself got lost. */
+ *  8 seconds for NBA.com and 10 for ESPN (nbaline/pickem/live.py, espn.py), so this means the request
+ *  itself got lost. */
 export const GIVE_UP_AFTER = 25_000;
 
 /** Runs `check` now, then again after the delay it returns (null: stop), until `stop()`. A check that

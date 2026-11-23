@@ -132,31 +132,35 @@ def _cards(text: str) -> list[dict]:
     return cards
 
 
-def _key(n: str) -> str:
+def name_key(n: str) -> str:
+    """A name reduced to its letters, without accents or case: "Nikola Jokić" -> "nikolajokic"."""
     return re.sub(r"[^a-z]", "", _norm(n))
 
 
-def _key_nosfx(n: str) -> str:
-    return _key(" ".join(w for w in n.split() if w.lower().rstrip(".") not in _SUFFIX))
+def name_key_no_suffix(n: str) -> str:
+    """name_key without "Jr.", "III", ...: "Robert Williams III" -> "robertwilliams"."""
+    return name_key(" ".join(w for w in n.split() if w.lower().rstrip(".") not in _SUFFIX))
+
+
+def last_name_and_initial(n: str) -> tuple[str, str]:
+    """("claxton", "n") for "Nic Claxton" and "Nicolas Claxton" alike."""
+    w = [x for x in n.split() if x.lower().rstrip(".") not in _SUFFIX] or n.split()
+    return name_key(w[-1]), name_key(w[0])[:1]
 
 
 def _parse_cards(cards: list[dict], player_names: list[str], teams: dict, day: str | None):
-    def last_initial(n: str) -> tuple[str, str]:
-        w = [x for x in n.split() if x.lower().rstrip(".") not in _SUFFIX] or n.split()
-        return _key(w[-1]), _key(w[0])[:1]
-
-    full = {_key(n): n for n in player_names}
+    full = {name_key(n): n for n in player_names}
     nosfx: dict = {}
     by_team_last: dict = {}
     for n in player_names:
-        nosfx.setdefault(_key_nosfx(n), []).append(n)
-        by_team_last.setdefault((teams.get(n), *last_initial(n)), []).append(n)
+        nosfx.setdefault(name_key_no_suffix(n), []).append(n)
+        by_team_last.setdefault((teams.get(n), *last_name_and_initial(n)), []).append(n)
 
     def match(name: str, team: str):
-        if _key(name) in full:
-            return full[_key(name)]
-        for cands in (nosfx.get(_key_nosfx(name), []),  # "Robert Williams" vs "Robert Williams III"
-                      by_team_last.get((team, *last_initial(name)), [])):  # "Nic" vs "Nicolas" Claxton, same team
+        if name_key(name) in full:
+            return full[name_key(name)]
+        for cands in (nosfx.get(name_key_no_suffix(name), []),  # "Robert Williams" vs "Robert Williams III"
+                      by_team_last.get((team, *last_name_and_initial(name)), [])):  # "Nic" vs "Nicolas" Claxton, same team
             if len(cands) == 1:
                 return cands[0]
         return None

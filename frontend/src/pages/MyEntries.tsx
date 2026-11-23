@@ -261,8 +261,8 @@ function OpenEntries({ reload }: { reload: number }) {
         ]} />
       </div>
       <p className="muted small">{note}</p>
-      {live?.feed_down && <p className="note small">NBA.com's live feed isn't answering right now, so the picks show the
-        last numbers it sent (the game clock shows when from). NBALine keeps trying every 15 seconds.</p>}
+      {live?.feed_down && <p className="note small">Neither NBA.com's live feed nor ESPN's is answering right now, so the
+        picks show the last numbers they sent (the game clock shows when from). NBALine keeps trying every 15 seconds.</p>}
       <div id="openEntries" className={view === "grid" ? "grid" : ""}>
         {!entries ? <p className="muted">Loading…</p>
           : entries.length ? entries.map((e) => <EntryCard key={e.id} e={e} live={live} now={now} onDelete={() => remove(e.id)}

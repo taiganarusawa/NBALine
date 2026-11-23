@@ -161,7 +161,7 @@ Lines whose game has started are followed live, every 15 seconds while the tab i
 - the model's **live chance**: its pre-game projection, updated with his stats so far, his minutes
   and the time left (`nbaline/pickem/ingame.py`)
 - a live pick when one side reaches 54.2%
-- "feed not answering" when NBA.com's live feed stops answering
+- "feed not answering" when neither NBA.com's live feed nor ESPN's answers
 
 The live chance was tested on Nov 10's games at the end of Q1, halftime and the end of Q3. It beat
 both the pre-game chance and "he keeps his current pace", on one night so far.
@@ -250,8 +250,12 @@ Each pick shows:
 
 Each entry shows what's locked in and the most it can still pay.
 
-If NBA.com's live feed stops answering, the picks keep the last numbers it sent and a note says so.
-NBALine keeps trying, and the server window logs when it stopped and when it's back.
+If NBA.com's live feed stops answering, ESPN's live box scores stand in, and NBA.com is asked again
+every minute. ESPN's numbers can lag NBA.com's by a few seconds, its minutes are rounded, and it can
+miss a late stat correction (a rebound or block), so a pick right at its line may show a little
+differently. Grading still uses NBA.com's official box scores. If neither answers, the picks keep the
+last numbers they got and a note says so. NBALine keeps trying, and the server window logs when a
+feed stopped and when it's back.
 
 The **List / Grid** switch shows one entry per row or two side by side.
 

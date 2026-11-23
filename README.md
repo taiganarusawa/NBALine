@@ -133,7 +133,7 @@ Every input for a game is built only from games played before it.
 | Player tracking | NBA.com's camera-tracking stats (2017-18 on) | Potential assists, rebound chances, drives, touches. Counted differently from 2024-25, so measured against the league |
 | Dunks and shot profile | NBA.com's shot charts (2017-18 on) | Every shot's zone and type; box scores don't count dunks |
 | Hustle stats | NBA.com's hustle stats (2017-18 on) | Deflections, contested shots, box outs. Logged by people at each game, so measured against the league |
-| Live games | NBA.com's live box scores | Refreshed every 15 seconds while a game is on |
+| Live games | NBA.com's live box scores; ESPN's when NBA.com doesn't answer | Refreshed every 15 seconds while a game is on |
 | PrizePicks lines | **You paste them** | NBALine never scrapes PrizePicks |
 
 How far to trust each source is covered in [GUIDE.md](GUIDE.md#data-sources-in-detail).
@@ -193,6 +193,7 @@ nbaline/                 the library: everything the commands and the web app sh
     lines.py             cached line analysis for the web app
     calibration.py       the chance adjustment, learned from the model's record against PrizePicks
     live.py, ingame.py   games in progress: live box scores, and the model's chance from here
+    espn.py              ESPN's live box scores, the backup when NBA.com's feed doesn't answer
     jerseys.py           players' jersey numbers
     explain.py           why a graded pick hit or missed, in plain words
     store.py             SQLite: checked lines, pasted boards, entries; grading and results
