@@ -527,8 +527,12 @@ depend on past seasons, so it gives the same models as a full retrain in about h
 2. Checks every finished game on the official schedule is in the data.
 3. Grades yesterday's predictions and PrizePicks entries.
 4. Retrains the models once a week, but only if the data is complete.
+5. Deletes saved injury reports more than 30 days old (only recent ones are ever read).
 
 It writes a log to `logs/daily_YYYY-MM-DD.log` and a summary to `data/status.json`.
+
+Training also deletes the temporary copy of its data that a stopped run leaves behind (400-600 MB, in
+Windows' temp folder), once it's a day old.
 
 To run it every morning at 9:00 with Windows Task Scheduler (once, in PowerShell). If the computer was
 off, it runs as soon as it's back on:

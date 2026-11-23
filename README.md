@@ -218,7 +218,7 @@ experiments.py  tune.py  learning_curve.py                                      
 | `python stat_models.py --train` | Trains the other 25 stat models (`--evaluate` tests them) |
 | `python predict.py "Player" 28.5` | One prediction on the command line, with its reasons |
 | `python score.py` | Grades your logged predictions and the app's entries |
-| `python daily.py [--retrain]` | The morning routine: download, check nothing's missing, grade, retrain weekly |
+| `python daily.py [--retrain]` | The morning routine: download, check nothing's missing, grade, retrain weekly, clear old injury reports |
 | `python experiments.py NAME ...` | Runs model experiments; `--compare A B` tests whether B really beats A |
 | `python tune.py`, `python learning_curve.py` | Hyperparameter search; error by training round |
 | `python -m nbaline.schedule` | Today's games |

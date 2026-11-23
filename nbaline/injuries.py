@@ -76,6 +76,20 @@ def _parsed_current(csv: Path) -> bool:
 
 
 NYS_FORMAT = 2   # .nys line: "game_date|matchup|TEAM" (version 1 had only "TEAM", for any game)
+KEEP_DAYS = 30   # saved reports older than this are deleted (prune_cache): only recent ones are ever read
+_REPORT_DAY = re.compile(r"Injury-Report_(\d{4}-\d{2}-\d{2})_")
+
+
+def prune_cache(keep_days: int = KEEP_DAYS) -> int:
+    """Delete saved reports from more than keep_days ago (about 100 small files a day pile up otherwise).
+    Predictions read the reports of the day they're for, so only re-predicting an older date loses them:
+    it then goes by who missed recent games instead. Returns how many files it deleted."""
+    oldest = str(datetime.now(ET).date() - timedelta(days=keep_days))
+    old = [f for f in CACHE.glob("Injury-Report_*")
+           if (m := _REPORT_DAY.match(f.name)) and m.group(1) < oldest] if CACHE.exists() else []
+    for f in old:
+        f.unlink(missing_ok=True)
+    return len(old)
 
 
 def _store_parsed(pdf: Path):

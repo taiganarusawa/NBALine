@@ -19,6 +19,7 @@ The model recipe itself is in nbaline/recipes.py (stat_recipe).
 import argparse
 import json
 import pickle
+import shutil
 import sys
 import tempfile
 import time
@@ -277,12 +278,29 @@ def training_workers(rows: pd.DataFrame, at_once: int):
     to a temporary file that every worker loads, instead of being sent through each worker's start-up
     pipe: Windows refused one of those large pipe writes while memory was low (Nov 22, 2026). It's the
     same pickle either way, so the workers get exactly the same rows."""
-    with tempfile.TemporaryDirectory(prefix="nbaline-") as folder:
+    clear_left_behind()
+    with tempfile.TemporaryDirectory(prefix=HANDOFF_PREFIX) as folder:
         path = Path(folder) / "training_rows.pkl"
         with open(path, "wb") as f:
             pickle.dump(rows, f)
         with ProcessPoolExecutor(at_once, initializer=_use_training_rows, initargs=(str(path),)) as pool:
             yield pool
+
+
+HANDOFF_PREFIX = "nbaline-"   # training_workers' temporary folders
+LEFT_BEHIND_AFTER = 24        # hours: older ones belong to no running training
+
+
+def clear_left_behind(older_than_hours: float = LEFT_BEHIND_AFTER) -> int:
+    """Delete the temporary training-row folders that stopped runs left behind (400-600 MB each): a run
+    deletes its own when it ends, but one that's stopped, or whose PC shuts down, can't (one was found on
+    Nov 23, 2026). Only folders a day old or more, so never one a training still running is using.
+    Returns how many it deleted."""
+    cutoff = time.time() - older_than_hours * 3600
+    old = [d for d in Path(tempfile.gettempdir()).glob(f"{HANDOFF_PREFIX}*") if d.is_dir() and d.stat().st_mtime < cutoff]
+    for folder in old:
+        shutil.rmtree(folder, ignore_errors=True)
+    return len(old)
 
 
 def _use_training_rows(path: str):
