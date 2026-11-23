@@ -163,7 +163,7 @@ details { margin-top: 8px; } summary { cursor: pointer; color: var(--muted); fon
 .why-text { color: var(--muted); margin-top: 2px; }
 .why-text > div + div { margin-top: 2px; }
 .why-text b { color: var(--ink); font-weight: 600; }
-/* picks that won or lost together (one player, or one game) */
+/* picks that won or lost together (several on one player) */
 .together { margin: 8px 0 4px; padding: 8px 10px; border-radius: 8px; font-size: 13px;
   background: color-mix(in srgb, var(--accent) 9%, var(--card)); }
 .together .small { margin-top: 4px; }

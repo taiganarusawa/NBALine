@@ -226,7 +226,7 @@ export interface Entry {
   picks: Pick[];
   /** Once graded: "4 of 6 hit · missed on Flagg · 1 removed (push)" (explain.py). */
   why?: string;
-  /** Picks that won or lost together: several on one player, or players in the same game. */
+  /** Picks that won or lost together: several on one player. */
   together?: string[];
 }
 

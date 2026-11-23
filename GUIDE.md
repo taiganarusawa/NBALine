@@ -86,8 +86,12 @@ and this browser remembers it.
 - The switch shows only when there are enough lines for both.
 
 - Every pick clears the 6-pick Flex break-even (54.2%), best chance first.
-- One pick per player, since all of a player's lines rise and fall with his minutes.
-- At most 2 picks from one game. On a small slate it allows more, rather than leave the lineup short.
+- One pick per player, since all of a player's lines rise and fall with his minutes. Of the picks
+  the page showed, when one of a player's picks hit, his other one hit 75% of the time; when it
+  missed, 34%.
+- Picks from one game are fine: players in the same game barely moved together (55-57% either way,
+  like players in different games). A limit of 2 per game was tried, and replaying every night with
+  and without it paid about the same.
 - Only well-tested stats, and no player who is inactive or questionable tonight.
 - No stat whose lines like these have clearly lost (below).
 - With only 5 such lines it's a 5-pick Flex either way (54.3%). With fewer there's no lineup that
@@ -346,7 +350,7 @@ So 32 minutes instead of his usual 22, on a Less that still hit, shows as luck, 
 Also shown:
 
 - how close it finished, and what the model expected
-- picks that won or lost together, above the picks: several on one player, or players in the same game
+- picks that won or lost together, above the picks: several on one player
 
 It's worked out from the box scores with fixed rules (`nbaline/pickem/explain.py`), so it only says what
 the numbers show. An injury during the game shows up as "only 14 min", without a reason.
@@ -405,7 +409,8 @@ Pick a day and see the lines that hit even though the model gave them little cha
 - **Goblins and Demons change every payout** by amounts PrizePicks doesn't publish. Two one-Goblin
   6-pick Flexes paid 19.2x and 16.6x for 6 of 6. Copy those payouts from the app, reverted ones too.
   How PrizePicks pays is summed up at the top of `nbaline/pickem/payouts.py`.
-- **Expected returns assume picks are independent.** Picks from the same game often move together.
+- **Expected returns assume picks are independent.** That's close for different players, even from
+  one game, but not for two picks on one player: they mostly hit or miss together.
 - **Everything you paste is saved** in `data/prizepicks.db`: every line analyzed with its prediction,
   the board text (an identical re-paste is skipped), and your entries.
 - **How lines are scored:** each player and stat counts once a day, at the last line you saw before

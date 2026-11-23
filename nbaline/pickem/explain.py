@@ -17,8 +17,8 @@ pushed it the way it went: why it hit or missed) and "despite" (what pushed it t
 against a hit, or helped a miss but not enough). More minutes on a Less that still hit is luck, not a
 reason it hit. Then how close it finished, what the model expected, and (unless the line was already a
 reason) where the line sat in his last 10 games.
-For each entry, picks that won or lost together: several on one player ride on his one night, and
-players in the same game share its pace and score, though the entry odds treat every pick as independent.
+For each entry, picks that won or lost together: several on one player ride on his one night, though the
+entry odds treat every pick as independent. (Players in the same game barely move together: see lineup.py.)
 
 Only what the numbers show is said. An injury during the game or a coach resting him shows up as
 "only 14 min", without a reason, because the box score doesn't say why.
@@ -111,7 +111,7 @@ def entry_summary(picks: list[dict]) -> str:
 
 def picks_together(picks: list[dict]) -> list[str]:
     """Picks that won or lost together: several on one player ('3 picks on Zubac all missed: one night
-    decided all 3'), or players in the same game who all went the same way."""
+    decided all 3')."""
     graded = [p for p in picks if p["result"] in ("hit", "miss")]
     said = []
     by_player = defaultdict(list)
@@ -126,17 +126,6 @@ def picks_together(picks: list[dict]) -> list[str]:
             said.append(f"{n} picks on {name}, {every} {'hit' if hits else 'missed'}: one night decided {'both' if n == 2 else 'all of them'}.")
         else:
             said.append(f"{n} picks on {name}: {hits} hit, {n - hits} missed.")
-    by_game = defaultdict(dict)   # game -> player -> his result (one per player)
-    for p in graded:
-        by_game[p["game_id"]].setdefault(p["player_id"], p)
-    for players in by_game.values():
-        if len(players) < 2 or len({p["result"] for p in players.values()}) > 1:
-            continue
-        first = next(iter(players.values()))
-        names = _and([_last_name(p) for p in players.values()])
-        both = "both" if len(players) == 2 else "all"
-        said.append(f"{names} played in the same game ({first['team']}–{first['opp']}) and {both} "
-                    f"{'hit' if first['result'] == 'hit' else 'missed'}.")
     return said
 
 
@@ -374,11 +363,6 @@ def _finish(pick: dict, me: pd.Series, usual: pd.DataFrame, recent: bool = True)
 def _num(x) -> str:
     """7.0 -> '7', 7.5 -> '7.5'"""
     return f"{float(x):g}"
-
-
-def _and(names: list[str]) -> str:
-    """['A', 'B', 'C'] -> 'A, B and C'"""
-    return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
 
 
 def _last_name(pick: dict) -> str:

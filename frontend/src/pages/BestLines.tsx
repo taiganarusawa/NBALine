@@ -119,7 +119,7 @@ function Board({ board, wellTestedOnly }: { board: BoardResult; wellTestedOnly: 
               render={(x, i) => <BoardRow x={x} rank={i + 1} entered={entered} records={board.stat_records} />} />
           : <div className="empty">No lines could be ranked.</div>}
         <p className="muted small">Model % is its chance the pick hits. Only picks above the break-even help you long-term,
-          and two picks from the same game tend to move together.</p>
+          and two picks on the same player tend to win or lose together.</p>
       </div>
       {moreOnly.length > 0 && <MoreOnlyLines lines={moreOnly} entered={entered} />}
       {started.length > 0 && <GamesInProgress lines={started} />}

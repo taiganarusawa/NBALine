@@ -2,15 +2,18 @@
 PrizePicks. Three options, from the same rules for who can be in one:
   * a line from a well-tested stat, for a player who isn't inactive or questionable tonight (if he
     sits, the pick reverts and the entry pays less),
-  * one pick per player, since all of one player's lines rise and fall with his minutes,
-  * and only a few picks from one game (players in one game move together a little: pace, blowouts).
-    On a small slate that can leave a lineup short: then one more per game is allowed, as far as it
-    takes to fill it.
+  * and one pick per player, since all of one player's lines rise and fall with his minutes: of the
+    picks the page showed (Nov 10-22, 2026), when one of a player's picks hit, his other one hit 75%
+    of the time, and when it missed, 34%.
+Players in the same game barely moved together (55-57% either way, as for different games), so the
+standard lineup takes picks from one game as they rank. It used to allow at most 2 per game: replaying
+every graded night with and without that limit paid about the same ($30.20 and $29.80 on $13 of
+6-pick Flexes, Nov 23, 2026).
 
 Standard: a 6-pick Flex of standard lines, best chance first, each clearing the Flex break-even (54.2%
 per pick for 6 picks at the standard payouts, 54.3% for 5) by the chance Best lines shows (adjusted to
-the model's record against PrizePicks once that adjustment is on), at most MAX_PER_GAME from one game,
-and from a stat whose lines like these haven't clearly lost against PrizePicks (its record on lines
+the model's record against PrizePicks once that adjustment is on), and from a stat whose lines like
+these haven't clearly lost against PrizePicks (its record on lines
 shown at the break-even or more, calibration.stat_records: even the high end of its likely range under
 the break-even). With only 5 such lines it's a 5-pick Flex, which has about the same break-even; with
 fewer there's no lineup, since a weaker pick would pull the whole entry below break-even. It also comes
@@ -19,7 +22,8 @@ and its losing stretches are shallower).
 
 Safer (Goblins) and high risk (Demons): a 3-pick Power of the best Goblins or Demons the model gives at
 least GOBLIN_AT_LEAST / DEMON_AT_LEAST, one per game, so the picks are close to independent and the
-chance shown for all of them hitting is honest. With only 2 such lines it's a 2-pick Power. Goblins hit
+chance shown for all of them hitting is honest (More-only picks from one game haven't been tested apart
+from standard ones, so this stays). With only 2 such lines it's a 2-pick Power. Goblins hit
 often but pay less; Demons the model likes have hit more often than it said, and pay more. PrizePicks
 publishes no formula for what they pay, so instead of a return these show the least PrizePicks must pay
 for the entry to be worth playing at the model's chances (min_payout), to compare with what its app
@@ -33,7 +37,6 @@ from . import calibration, payouts
 
 SIZES = (6, 5)          # a 6-pick Flex, or a 5-pick Flex when only 5 lines qualify
 RECORD_ENTRY = ("flex", 6)   # stats' records are on lines shown at this entry's break-even or more
-MAX_PER_GAME = 2
 UNSURE = ("Questionable",)   # Out and Doubtful never reach the ranked list
 
 POWER_SIZES = (3, 2)    # the Goblin and Demon lineups: a 3-pick Power, or 2-pick when only 2 qualify
@@ -55,11 +58,11 @@ def playable(row: dict) -> bool:
     return row.get("sides", "both") == "both" and expected_to_play(row)
 
 
-def pick_lineup(rows: list[dict], size: int, max_per_game: int) -> list[dict]:
-    """Up to `size` rows, best chance first: one per player, at most max_per_game per game."""
+def pick_lineup(rows: list[dict], size: int, max_per_game: int | None = None) -> list[dict]:
+    """Up to `size` rows, best chance first: one per player, and at most max_per_game per game (None: any)."""
     picks, players, games = [], set(), Counter()
     for r in sorted(rows, key=lambda r: -r["p_best"]):
-        if r["player_id"] in players or games[r["game_id"]] >= max_per_game:
+        if r["player_id"] in players or (max_per_game is not None and games[r["game_id"]] >= max_per_game):
             continue
         picks.append(r)
         players.add(r["player_id"])
@@ -69,7 +72,7 @@ def pick_lineup(rows: list[dict], size: int, max_per_game: int) -> list[dict]:
     return picks
 
 
-def fill(pool: list[dict], size: int, per_game: int = MAX_PER_GAME) -> list[dict]:
+def fill(pool: list[dict], size: int, per_game: int) -> list[dict]:
     """pick_lineup with at most per_game picks from a game, loosened one game-pick at a time while that
     leaves it short (a small slate: one more pick from a game rather than one pick fewer)."""
     picks = pick_lineup(pool, size, per_game)
@@ -109,13 +112,13 @@ def standard_lineup(ranked: list[dict], records: dict[str, dict], sizes: tuple[i
     for size in sizes:
         break_even = payouts.break_even("flex", size)
         pool = [r for r in usable if r["p_best"] >= break_even]
-        picks = fill(pool, size)
+        picks = pick_lineup(pool, size)
         if len(picks) == size:
             break
     else:   # too few for any of them: show what clears the largest size's break-even
         size, break_even = None, payouts.break_even("flex", sizes[0])
         pool = [r for r in usable if r["p_best"] >= break_even]
-        picks = fill(pool, sizes[0])
+        picks = pick_lineup(pool, sizes[0])
     out = _summary(f"flex{sizes[0]}", "standard", "flex", size, picks, pool, break_even)
     out.update(sizes=list(sizes), priced=True, losing=dict(left_out))
     if size:

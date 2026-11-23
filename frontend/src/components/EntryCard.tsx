@@ -333,8 +333,8 @@ function WhyItWent({ e }: { e: Entry }) {
       {!!e.together?.length && (
         <div className="together">
           {e.together.map((note) => <div key={note}>{note}</div>)}
-          <div className="muted small">The entry's odds treated every pick as independent. Picks on one player or
-            in one game tend to win or lose together.</div>
+          <div className="muted small">The entry's odds treated every pick as independent. Picks on one player tend
+            to win or lose together.</div>
         </div>
       )}
       <ul className="why-list">

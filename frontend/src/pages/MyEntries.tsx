@@ -207,7 +207,7 @@ function IndependenceNote({ names }: { names: string[] }) {
   return twice.length
     ? <>Assumes picks are independent, but {twice.join(" and ")} {twice.length === 1 ? "has" : "have"} more than one pick,
         and those tend to hit or miss together, so take these odds as rougher than usual.</>
-    : <>Assumes picks are independent. Picks from the same game often aren't.</>;
+    : <>Assumes picks are independent, which is close for different players, even from one game.</>;
 }
 
 // ------------------------------------------------------------- saved entries
