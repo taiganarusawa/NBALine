@@ -378,10 +378,15 @@ function SureTakeaway({ picks }: { picks: SureBand[] }) {
     : <>Being surer hasn't made it right more often yet ({pct(rightRate(weak))} at {sureLabel(weak)}, {pct(rightRate(strong))} at {sureLabel(strong)}). </>;
   const honest = tooSure >= 0.02 ? <>But it's right less often than it says: about <b>{Math.round(tooSure * 100)} points</b> less on average. </>
     : tooSure <= -0.02 ? <>It's right a little more often than it says. </> : <>It's about as right as it says. </>;
+  const unproven = clear.filter((b) => !proven.includes(b));
   const which = clear.length === enough.length ? "All its picks are" : `Only its ${andList(clear.map(sureLabel))} picks are`;
+  // proven: even the low end of the ± is above the break-even. All, none, or some of the groups above it.
+  const proof = !unproven.length ? ", and proven: even the low end of the ± is above it."
+    : !proven.length ? `, and even ${clear.length === 1 ? "that isn't" : "those aren't"} proven yet: the ± still reaches below it.`
+    : `. The ${andList(proven.map(sureLabel))} ones are proven: even the low end of their ± is above it. `
+      + `The ${andList(unproven.map(sureLabel))} ones aren't yet.`;
   const beats = !clear.length ? <>None of its picks are above the {pct(BREAK_EVEN)} break-even yet.</>
-    : <>{which} above the {pct(BREAK_EVEN)} break-even{proven.length === clear.length ? "."
-        : `, and even ${clear.length === 1 ? "that isn't" : "those aren't"} proven yet: the ± still reaches below it.`}</>;
+    : <>{which} above the {pct(BREAK_EVEN)} break-even{proof}</>;
   return <p className="takeaway">{surer}{honest}{beats}</p>;
 }
 
