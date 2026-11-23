@@ -13,7 +13,7 @@ TRACKING = DATA / "tracking.csv"          # passes, potential assists, rebound c
 SHOTS = DATA / "shots.csv"                # where and how each player shot (zones, shot types) per game
 HUSTLE = DATA / "hustle.csv"              # deflections, box outs, contested shots, loose balls per game
 FEATURES_CACHE = DATA / "features.pkl.gz"   # model inputs for every past game, compressed (rebuilt when stale)
-INJURY_REPORTS = DATA / "injury_reports"  # cached official injury report PDFs, parsed
+INJURY_REPORTS = DATA / "injury_reports"  # every official injury report read, parsed: one JSON file per day
 PICKEM_DB = DATA / "prizepicks.db"        # your checked lines, pasted boards and entries
 STATUS = DATA / "status.json"             # result of the last daily update
 

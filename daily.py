@@ -5,7 +5,6 @@
   3. Grade yesterday's predictions and PrizePicks entries (score.py)
   4. Retrain the model once a week           (only if the data is complete; a model with no new
                                               games to learn from is kept as it is)
-  5. Delete saved injury reports more than 30 days old
 
 Writes a full log to logs/daily_YYYY-MM-DD.log and a summary to data/status.json.
 Run it by hand any time:  python daily.py   (or  python daily.py --retrain)
@@ -91,14 +90,6 @@ def main():
             # models with nothing new to learn are kept as they are: were any actually retrained?
             status["retrained"] = any(f.stat().st_mtime >= started for f in MODELS.glob("*.pkl"))
             status["model_age_days"] = model_age()
-
-        # 5. tidy up: saved injury reports from more than a month ago (only recent ones are read)
-        from nbaline import injuries
-        try:
-            log.write(f"\nDeleted {injuries.prune_cache()} saved injury report file(s) older than "
-                      f"{injuries.KEEP_DAYS} days\n")
-        except OSError as e:   # a file in use: try again tomorrow
-            log.write(f"\nCouldn't clear old injury reports: {e}\n")
 
     status["ok"] = bool(ok and complete and status["score_ok"] and train_ok)
     STATUS.write_text(json.dumps(status, indent=2))

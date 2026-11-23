@@ -13,8 +13,11 @@ predict.py uses this automatically: players listed Out or Doubtful are treated a
 Questionable/Probable players are shown as warnings.
 """
 import argparse
+import json
 import re
 import sys
+import tempfile
+import threading
 from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -44,62 +47,71 @@ def fetch_report(at: datetime | None = None, max_back: int = 16):
     """Latest report published at or before `at` (Eastern time; default now).
     Steps back 15 minutes at a time (up to 4 hours) until a report exists.
 
-    Each report is parsed once and kept as a small CSV (who's listed, plus a .nys file with the games
-    a team hadn't submitted for yet); the PDF itself is deleted, since the CSV holds everything we use.
-    Returns (report_time, csv_path) or (None, None)."""
+    Each report is downloaded and parsed once, then kept in that day's JSON file (saved_reports); the
+    PDF itself is deleted, since the JSON holds everything we use. The NBA takes old reports down (last
+    season's are gone), so the saved ones are kept for good.
+    Returns (report_time, {"players": [...], "not_submitted": [...]}) or (None, None)."""
     at = (at or datetime.now(ET)).astimezone(ET)
     t = at.replace(minute=at.minute - at.minute % 15, second=0, microsecond=0, tzinfo=None)
     CACHE.mkdir(parents=True, exist_ok=True)
     for _ in range(max_back):
-        pdf = CACHE / Path(report_url(t)).name
-        csv = pdf.with_suffix(".csv")
-        if csv.exists() and _parsed_current(csv):
-            return t, csv
-        try:  # not cached, or cached in the old format: (re)download and parse it
+        report = saved_reports(t.date()).get(f"{t:%H:%M}")
+        if report is not None:
+            return t, report
+        try:
             r = requests.get(report_url(t), headers=HEADERS, timeout=20)
             if r.status_code == 200 and r.content[:4] == b"%PDF":
-                pdf.write_bytes(r.content)
-                _store_parsed(pdf)
-                pdf.unlink()
-                return t, csv
+                return t, _save(t, *_parse_pdf(r.content))
         except requests.RequestException:
             pass
-        if csv.exists():  # old-format copy and the PDF can't be fetched again: use what we have
-            return t, csv
         t -= timedelta(minutes=15)
     return None, None
 
 
-def _parsed_current(csv: Path) -> bool:
-    nys = csv.with_suffix(".nys")
-    return nys.exists() and nys.read_text().startswith(f"#v{NYS_FORMAT}")
+# One JSON file per day (data/injury_reports/2026-11-23.json), with every report the app read that day:
+#   {"format": 1, "reports": {"17:15": {"players": [{game_date, game_time, matchup, team, player_raw,
+#    player, status, reason}, ...], "not_submitted": [[game_date, matchup, team code], ...]}}}
+# Times are US Eastern. "not_submitted": games a team hadn't sent its list for yet; a report covers
+# several days, so a team can have submitted for tonight but not yet for tomorrow. Reports saved through
+# Nov 10, 2026 only knew the team for these, so they read ["*", "*", team]: any game.
+FORMAT = 1
+_writing = threading.Lock()   # the web app reads reports for several requests at once
 
 
-NYS_FORMAT = 2   # .nys line: "game_date|matchup|TEAM" (version 1 had only "TEAM", for any game)
-KEEP_DAYS = 30   # saved reports older than this are deleted (prune_cache): only recent ones are ever read
-_REPORT_DAY = re.compile(r"Injury-Report_(\d{4}-\d{2}-\d{2})_")
+def saved_reports(day) -> dict:
+    """{"HH:MM": report} for every report saved for that date (Eastern), oldest first."""
+    path = CACHE / f"{day}.json"
+    return json.loads(path.read_text(encoding="utf-8"))["reports"] if path.exists() else {}
 
 
-def prune_cache(keep_days: int = KEEP_DAYS) -> int:
-    """Delete saved reports from more than keep_days ago (about 100 small files a day pile up otherwise).
-    Predictions read the reports of the day they're for, so only re-predicting an older date loses them:
-    it then goes by who missed recent games instead. Returns how many files it deleted."""
-    oldest = str(datetime.now(ET).date() - timedelta(days=keep_days))
-    old = [f for f in CACHE.glob("Injury-Report_*")
-           if (m := _REPORT_DAY.match(f.name)) and m.group(1) < oldest] if CACHE.exists() else []
-    for f in old:
-        f.unlink(missing_ok=True)
-    return len(old)
+def _save(t: datetime, players: pd.DataFrame, not_submitted: set) -> dict:
+    """Add one parsed report to its day's file, and return it as saved."""
+    report = dict(players=players.fillna("").to_dict("records"), not_submitted=sorted(map(list, not_submitted)))
+    with _writing:
+        reports = saved_reports(t.date())
+        reports[f"{t:%H:%M}"] = report
+        _write_day(CACHE / f"{t.date()}.json", reports)
+    return report
 
 
-def _store_parsed(pdf: Path):
-    """Parse a report PDF into <name>.csv (listed players) and <name>.nys (games not yet submitted for).
-    A report covers several days: a team can have submitted for tonight but not yet for tomorrow."""
-    df, missing_games = parse_report(pdf)
-    df.to_csv(pdf.with_suffix(".csv"), index=False)
+def _write_day(path: Path, reports: dict):
+    """A day's reports, one compact line each (a quarter smaller than indented JSON, still easy to scan).
+    Written whole, then swapped in, so a reader never sees half a file."""
+    lines = ",\n".join(f"{json.dumps(k)}: {json.dumps(v, ensure_ascii=False, separators=(',', ':'))}"
+                       for k, v in sorted(reports.items()))
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(f'{{"format": {FORMAT}, "reports": {{\n{lines}\n}}}}\n', encoding="utf-8")
+    tmp.replace(path)
+
+
+def _parse_pdf(content: bytes) -> tuple[pd.DataFrame, set]:
+    """(listed players, {(game_date, matchup, team code)} not yet submitted) from a report's PDF."""
+    with tempfile.TemporaryDirectory(prefix="nbaline-report-") as folder:
+        pdf = Path(folder) / "report.pdf"
+        pdf.write_bytes(content)
+        df, missing_games = parse_report(pdf)
     codes = team_codes()
-    lines = {f"{day}|{matchup}|{to_code(team, codes)}" for day, matchup, team in missing_games if to_code(team, codes)}
-    pdf.with_suffix(".nys").write_text("\n".join([f"#v{NYS_FORMAT}"] + sorted(lines)))
+    return df, {(day, matchup, code) for day, matchup, team in missing_games if (code := to_code(team, codes))}
 
 
 # --------------------------------------------------------------------- parse
@@ -194,16 +206,12 @@ def to_code(team_name: str, codes: dict) -> str | None:
 
 def load(at: datetime | None = None):
     """(report_time, DataFrame with a TEAM code column, {(game_date, matchup, team code)} not yet
-    submitted). An old-format copy only knows the team, so its entries read ("*", "*", team): any game."""
-    t, csv = fetch_report(at)
-    if csv is None:
+    submitted). Entries reading ("*", "*", team) are from older saved reports: any game."""
+    t, report = fetch_report(at)
+    if report is None:
         return None, pd.DataFrame(), set()
-    df = pd.read_csv(csv, dtype=str).fillna("")
-    nys = csv.with_suffix(".nys")
-    missing = set()
-    for line in (nys.read_text().split("\n") if nys.exists() else []):
-        if line and not line.startswith("#"):
-            missing.add(tuple(line.split("|")) if "|" in line else ("*", "*", line))
+    df = pd.DataFrame(report["players"], dtype=str)
+    missing = {tuple(x) for x in report["not_submitted"]}
     if len(df):
         codes = team_codes()
         df["TEAM"] = df["team"].map(lambda n: to_code(n, codes))
