@@ -232,21 +232,52 @@ Daily command-line use and the automatic morning update are in [GUIDE.md](GUIDE.
 ## How well it works
 
 **On seasons the models never saw:**
-- **Points:** the projection misses by **4.83 points** on average, against 5.03 for a smart average of
-  his recent games. The chances are well calibrated. Starting lineups have improved it since.
+- **Points:** on the 2025-26 season the projection missed by **4.79 points** on average, against 5.00
+  for a smart average of his recent games. So far this season it's 4.72. The chances are well
+  calibrated.
 - **The 25 other stats:** every one beats a no-model baseline on 2025-26. The gains are small, from
   0.0002 to 0.0145 in Brier score.
 
-**Against real PrizePicks lines** (6,677 graded standard lines, as of Nov 18, 2026):
+**Against real PrizePicks lines** (13,970 graded standard lines over 14 nights, Nov 10–23, 2026):
 
 | | Model's More picks right | Model's Less picks right |
 |---|---|---|
-| Non-scoring stats (rebounds, assists, threes, ...) | 54.6% | 53.1% |
-| Scoring stats (points, PRA, P+R, P+A, fantasy) | 45.6% | 50.7% |
+| Non-scoring stats (rebounds, assists, threes, ...) | 55.8% of 3,048 | 55.4% of 5,297 |
+| Scoring stats (points, PRA, P+R, P+A, fantasy) | 50.1% of 1,396 | 51.9% of 4,229 |
 
 - A 5- or 6-pick Flex needs 54.2% per pick to break even.
-- On scoring stats the model has no edge so far. PrizePicks prices those lines carefully.
-- That's only about 8 nights of lines, so these numbers will still move.
+- **The picks the app shows** (54.2%+ for one side after the chance adjustment) were right **57.4%** of
+  the time, over 5,770 lines:
+  - Non-scoring stats: 59.4%. Scoring stats: 54.2%, right at break-even.
+  - Today's adjustment was learned from these same nights, so expect a little less on new ones.
+- On scoring stats the model has almost no edge across all lines. PrizePicks prices those lines
+  carefully.
+- **By stat**, among the shown picks with 100+ lines:
+  - Best: Blocked Shots 81% (122 lines), Blks+Stls 67%, Turnovers 65%, Steals 64%.
+  - Weakest: Free Throws Made 51%, FG Made 52%, Pts+Asts and Fantasy Score 53%.
+  - The Results tab has every stat.
+
+**The surer the model, the more often it's right, but its own chances were too sure:**
+
+| Model's chance for its side | Right | Lines |
+|---|---|---|
+| 50–54% | 51.8% | 4,880 |
+| 54–60% | 51.7% | 4,994 |
+| 60–65% | 54.9% | 2,355 |
+| 65–70% | 58.8% | 1,012 |
+| 70%+ | 72.6% | 729 |
+
+That's why the app shrinks its chances toward 50% before showing them
+([the chance adjustment](GUIDE.md#the-chance-adjustment)). It now keeps about 55% of each lean, so a 70%
+lean shows as 61%.
+
+**Goblins and Demons** (More only), where the model's chances match what happened:
+- Goblins: the model said 59.8% on average, and 61.2% went over (5,250 lines).
+- Demons: it said 24.6%, and 25.4% went over (3,924 lines). The Demons it gave 60% or more went over
+  79% of the time, but that's only 48 lines.
+
+These are two weeks of lines, so the numbers will still move. Each night's lines are graded the next
+morning.
 
 An older test against made-up lines (a player's recent average) showed about 62% right. That number is
 inflated, as [TRAINING.md §1](TRAINING.md) explains: real lines are set more sharply than averages.
