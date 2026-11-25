@@ -238,46 +238,50 @@ Daily command-line use and the automatic morning update are in [GUIDE.md](GUIDE.
 - **The 25 other stats:** every one beats a no-model baseline on 2025-26. The gains are small, from
   0.0002 to 0.0145 in Brier score.
 
-**Against real PrizePicks lines** (13,970 graded standard lines over 14 nights, Nov 10–23, 2026):
+**Against real PrizePicks lines** (13,330 graded standard lines over 15 nights, Nov 10–24, 2026):
 
 | | Model's More picks right | Model's Less picks right |
 |---|---|---|
-| Non-scoring stats (rebounds, assists, threes, ...) | 55.8% of 3,048 | 55.4% of 5,297 |
-| Scoring stats (points, PRA, P+R, P+A, fantasy) | 50.1% of 1,396 | 51.9% of 4,229 |
+| Non-scoring stats (rebounds, assists, threes, ...) | 54.4% of 2,590 | 53.2% of 4,956 |
+| Scoring stats (points, PRA, P+R, P+A, fantasy) | 50.3% of 1,431 | 51.6% of 4,353 |
 
 - A 5- or 6-pick Flex needs 54.2% per pick to break even.
-- **The picks the app shows** (54.2%+ for one side after the chance adjustment) were right **57.4%** of
-  the time, over 5,770 lines:
-  - Non-scoring stats: 59.4%. Scoring stats: 54.2%, right at break-even.
+- Across all lines the model is close to a coin flip, and on scoring stats it has almost no edge.
+  PrizePicks prices those lines carefully.
+- **The picks the app shows** (54.2%+ for one side after the chance adjustment) were right **56.3%** of
+  the time, over 2,960 lines:
+  - Non-scoring stats: 56.4%. Scoring stats: 56.2%.
   - Today's adjustment was learned from these same nights, so expect a little less on new ones.
-- On scoring stats the model has almost no edge across all lines. PrizePicks prices those lines
-  carefully.
 - **By stat**, among the shown picks with 100+ lines:
-  - Best: Blocked Shots 81% (122 lines), Blks+Stls 67%, Turnovers 65%, Steals 64%.
-  - Weakest: Free Throws Made 51%, FG Made 52%, Pts+Asts and Fantasy Score 53%.
+  - Best: Defensive Rebounds and Pts+Rebs+Asts 60% (132 and 316 lines), 3-PT Attempted and Two Pointers
+    Made 59%.
+  - Weakest: Assists 50%, Rebounds 51%, Fantasy Score 52%, FG Made 53%.
   - The Results tab has every stat.
 
-**The surer the model, the more often it's right, but its own chances were too sure:**
+**The surer the model, the more often it's right, but its own chances are too sure:**
 
 | Model's chance for its side | Right | Lines |
 |---|---|---|
-| 50–54% | 51.8% | 4,880 |
-| 54–60% | 51.7% | 4,994 |
-| 60–65% | 54.9% | 2,355 |
-| 65–70% | 58.8% | 1,012 |
-| 70%+ | 72.6% | 729 |
+| 50–54% | 51.4% | 4,862 |
+| 54–60% | 51.4% | 4,948 |
+| 60–65% | 54.4% | 2,213 |
+| 65–70% | 56.6% | 874 |
+| 70%+ | 61.7% | 433 |
 
-That's why the app shrinks its chances toward 50% before showing them
-([the chance adjustment](GUIDE.md#the-chance-adjustment)). It now keeps about 55% of each lean, so a 70%
-lean shows as 61%.
+- Scored as chances, the model's own numbers do slightly worse than calling every line 50/50 (Brier
+  0.2517 against 0.25, tested night by night).
+- So the app shrinks them toward 50% before showing them
+  ([the chance adjustment](GUIDE.md#the-chance-adjustment)). With that, they beat 50/50 (0.2489).
+- It now keeps about 38% of each lean, so a 70% lean shows as 58%.
 
 **Goblins and Demons** (More only), where the model's chances match what happened:
-- Goblins: the model said 59.8% on average, and 61.2% went over (5,250 lines).
-- Demons: it said 24.6%, and 25.4% went over (3,924 lines). The Demons it gave 60% or more went over
+- Goblins: the model said 59.8% on average, and 61.2% went over (5,464 lines).
+- Demons: it said 24.8%, and 25.7% went over (4,093 lines). The Demons it gave 60% or more went over
   79% of the time, but that's only 48 lines.
+- Double-doubles and triple-doubles are always Demons: PrizePicks only offers More on them.
 
-These are two weeks of lines, so the numbers will still move. Each night's lines are graded the next
-morning.
+These are about two weeks of lines, so the numbers will still move. Each night's lines are graded the
+next morning.
 
 An older test against made-up lines (a player's recent average) showed about 62% right. That number is
 inflated, as [TRAINING.md §1](TRAINING.md) explains: real lines are set more sharply than averages.

@@ -11,6 +11,7 @@ from datetime import date
 import pandas as pd
 
 from .board import WEEKDAYS, board_days
+from .ingame import YES_NO
 
 
 def board_date(text: str, chosen: pd.Timestamp, today: date | None = None) -> tuple[pd.Timestamp, str | None]:
@@ -30,7 +31,11 @@ def board_date(text: str, chosen: pd.Timestamp, today: date | None = None) -> tu
 def label_line_types(found: list[dict]) -> list[dict]:
     """Mark each More-only card as a Goblin or a Demon: by PrizePicks' own tag on the copied card, or
     else by the same player's standard line (below it = Goblin, above = Demon). "more_only" when
-    neither tells."""
+    neither tells. Double-doubles and triple-doubles are always Demons, even when a copy leaves out
+    the buttons or the tag: PrizePicks only offers More on them."""
+    for f in found:
+        if f["stat"] in YES_NO:
+            f.update(sides="more", kind=f.get("kind") or "demon")
     standard = {(f["player"], f["stat"]): f["line"] for f in found if f.get("sides", "both") == "both"}
     for f in found:
         if f.get("sides", "both") != "both":

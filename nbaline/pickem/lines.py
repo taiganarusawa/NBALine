@@ -18,6 +18,7 @@ from .. import predictor as P
 from .. import schedule as S
 from ..paths import PLAYER_LOGS
 from . import calibration, store
+from .ingame import YES_NO
 from .payouts import entry_odds, stat_value
 
 CACHE_SECONDS = 20 * 60
@@ -155,8 +156,9 @@ def _model_results(rows: list[dict], day: pd.Timestamp) -> list[dict]:
             item["history"] = history(recent.get(a["player_id"], []), r["stat"], float(r["line"]))
             item.update(final_result(a, r["stat"], float(r["line"]), day))
             if not a["started"]:  # only real pregame checks count toward the model's record
-                to_save.append(dict(item, p_over=item.get("p_over"), proj=item.get("proj"),
-                                    line_type=r.get("line_type")))
+                # PrizePicks only offers More on double- and triple-doubles, so they're never standard lines
+                kind = r.get("line_type") or ("demon" if r["stat"] in YES_NO else None)
+                to_save.append(dict(item, p_over=item.get("p_over"), proj=item.get("proj"), line_type=kind))
         _results[key] = (time.time(), item)
         out[i] = item
     if to_save:

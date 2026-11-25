@@ -147,6 +147,8 @@ said, since then the payout needed is higher than shown.
 - These "More-only" cards are listed separately, with the model's More chance. They aren't ranked,
   because they pay differently.
 - Which kind each card is comes from PrizePicks' own tag in the copied page.
+- Double-doubles and triple-doubles are always Demons, even when a copy leaves out the tag or the
+  buttons: PrizePicks only offers More on them.
 - The **All / Demons / Goblins** buttons show one kind at a time.
 
 ### Lines it sets aside
